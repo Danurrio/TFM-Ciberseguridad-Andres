@@ -15,10 +15,9 @@ spec:
     spec:
       containers:
         - name: backend
-          image: image-registry.openshift-image-registry.svc:5000/openshift/nodejs@sha256:482544a871ad56aa24dedf7bc469feb52194fedbc5d1785399b6a8e79b6cc28a
+          image: image-registry.openshift-image-registry.svc:5000/opendrive/backend:latest
           ports:
             - containerPort: 8080
           env:
             - name: PORT
               value: "8080"
-          command: ["node", "server.js"]
