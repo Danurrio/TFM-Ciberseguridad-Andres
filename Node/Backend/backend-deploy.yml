@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: opendrive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: image-registry.openshift-image-registry.svc:5000/openshift/nodejs@sha256:482544a871ad56aa24dedf7bc469feb52194fedbc5d1785399b6a8e79b6cc28a
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          command: ["node", "server.js"]
