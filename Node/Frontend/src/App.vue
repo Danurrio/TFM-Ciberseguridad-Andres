@@ -1,52 +1,44 @@
 <template>
   <div class="app">
-    <div v-if="!loggedIn" class="welcome">
+    <div v-if="!loggedIn">
       <div class="hero">
         <h1>☁️ OpenDrive</h1>
         <p>Tu almacenamiento privado y seguro</p>
-        <button @click="showLogin = true" v-if="!showLogin">
-          Iniciar sesión
-        </button>
       </div>
-
-      <div v-if="showLogin" class="login-box">
-        <h2>Bienvenido de nuevo</h2>
-        <input v-model="email" type="email" placeholder="Email" />
-        <input v-model="password" type="password" placeholder="Contraseña" />
-        <button @click="login">Entrar</button>
-        <p v-if="error" class="error">{{ error }}</p>
-      </div>
+      <Register v-if="page === 'register'" 
+        @go-login="page = 'login'" />
+      <Login v-else 
+        @go-register="page = 'register'"
+        @logged-in="onLogin" />
     </div>
 
     <div v-else class="dashboard">
       <h2>¡Bienvenido a OpenDrive! 🎉</h2>
       <p>Has iniciado sesión correctamente.</p>
-      <button @click="loggedIn = false">Cerrar sesión</button>
+      <button @click="logout">Cerrar sesión</button>
     </div>
   </div>
 </template>
 
 <script>
+import Login from './components/Login.vue'
+import Register from './components/Register.vue'
+
 export default {
+  components: { Login, Register },
   data() {
     return {
-      showLogin: false,
-      loggedIn: false,
-      email: '',
-      password: '',
-      error: ''
+      page: 'login',
+      loggedIn: !!localStorage.getItem('token')
     }
   },
   methods: {
-    async login() {
-      this.error = ''
-      if (!this.email || !this.password) {
-        this.error = 'Por favor rellena todos los campos'
-        return
-      }
-      // Por ahora simulamos el login
-      // Cuando el backend tenga el endpoint real, lo conectamos aquí
+    onLogin(token) {
       this.loggedIn = true
+    },
+    logout() {
+      localStorage.removeItem('token')
+      this.loggedIn = false
     }
   }
 }
@@ -65,6 +57,7 @@ body {
 .app {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
@@ -74,19 +67,10 @@ body {
   margin-bottom: 2rem;
 }
 
-.hero h1 {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  color: #60a5fa;
-}
+.hero h1 { font-size: 3rem; color: #60a5fa; margin-bottom: 0.5rem; }
+.hero p { font-size: 1.2rem; color: #94a3b8; }
 
-.hero p {
-  font-size: 1.2rem;
-  color: #94a3b8;
-  margin-bottom: 1.5rem;
-}
-
-.login-box {
+.form-box {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -96,10 +80,7 @@ body {
   border-radius: 12px;
 }
 
-.login-box h2 {
-  text-align: center;
-  color: #60a5fa;
-}
+.form-box h2 { text-align: center; color: #60a5fa; }
 
 input {
   padding: 0.75rem;
@@ -118,12 +99,16 @@ button {
   color: white;
   font-size: 1rem;
   cursor: pointer;
-  transition: background 0.2s;
 }
 
 button:hover { background: #2563eb; }
 
-.error { color: #f87171; text-align: center; }
+.error { color: #f87171; text-align: center; font-size: 0.9rem; }
+.success { color: #4ade80; text-align: center; font-size: 0.9rem; }
+
+.switch { text-align: center; font-size: 0.9rem; color: #94a3b8; }
+.switch span { color: #60a5fa; cursor: pointer; }
+.switch span:hover { text-decoration: underline; }
 
 .dashboard {
   text-align: center;
