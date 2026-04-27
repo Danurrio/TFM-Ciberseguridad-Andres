@@ -7,18 +7,15 @@ const pool = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
-// Validaciones
 function validarEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function validarPassword(password) {
-  // Mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/.test(password);
 }
 
 function validarTelefono(telefono) {
-  // Acepta formatos internacionales: +34 612345678, 612345678, etc.
   return /^\+?[\d\s\-]{7,15}$/.test(telefono);
 }
 
@@ -26,36 +23,31 @@ function validarTelefono(telefono) {
 router.post('/register', async (req, res) => {
   const { username, email, password, nombre, apellido, telefono, direccion } = req.body;
 
-  // Campos obligatorios
   if (!username || !email || !password || !nombre || !apellido) {
     return res.status(400).json({ error: 'Nombre, apellido, usuario, email y contraseña son obligatorios' });
   }
 
-  // Validar email
   if (!validarEmail(email)) {
     return res.status(400).json({ error: 'El email no tiene un formato válido' });
   }
 
-  // Validar contraseña
   if (!validarPassword(password)) {
     return res.status(400).json({ 
       error: 'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial' 
     });
   }
 
-  // Validar teléfono si se proporciona
   if (telefono && !validarTelefono(telefono)) {
     return res.status(400).json({ error: 'El teléfono no tiene un formato válido' });
   }
 
   try {
     const password_hash = await bcrypt.hash(password, 10);
-    const csrf_token = crypto.randomBytes(32).toString('hex');
 
     const result = await pool.query(
-      `INSERT INTO usuarios (username, email, password_hash, nombre, apellido, telefono, direccion, csrf_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, email`,
-      [username, email, password_hash, nombre, apellido, telefono || null, direccion || null, csrf_token]
+      `INSERT INTO usuarios (username, email, password_hash, nombre, apellido, telefono, direccion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, email`,
+      [username, email, password_hash, nombre, apellido, telefono || null, direccion || null]
     );
 
     res.status(201).json({ message: 'Usuario creado', user: result.rows[0] });
@@ -92,12 +84,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
-    // Regenerar CSRF token en cada login
+    // CSRF token generado en cada login, viaja dentro del JWT
     const csrf_token = crypto.randomBytes(32).toString('hex');
-    await pool.query(
-      'UPDATE usuarios SET csrf_token = $1 WHERE id = $2',
-      [csrf_token, user.id]
-    );
 
     const token = jwt.sign(
       { id: user.id, username: user.username, email: user.email, csrf_token },
