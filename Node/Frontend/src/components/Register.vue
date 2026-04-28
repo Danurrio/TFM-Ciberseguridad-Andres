@@ -37,9 +37,42 @@ export default {
     }
   },
   methods: {
+    validarEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    },
+    validarPassword(password) {
+      return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/.test(password);
+    },
+    validarTelefono(telefono) {
+      return /^\+?[\d\s\-]{7,15}$/.test(telefono);
+    },
+    validarFormulario() {
+      if (!this.nombre || !this.apellido || !this.username || !this.email || !this.password) {
+        this.error = 'Nombre, apellido, usuario, email y contraseña son obligatorios';
+        return false;
+      }
+      if (!this.validarEmail(this.email)) {
+        this.error = 'El email no tiene un formato válido';
+        return false;
+      }
+      if (!this.validarPassword(this.password)) {
+        this.error = 'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial';
+        return false;
+      }
+      if (this.telefono && !this.validarTelefono(this.telefono)) {
+        this.error = 'El teléfono no tiene un formato válido';
+        return false;
+      }
+      return true;
+    },
     async register() {
       this.error = ''
       this.success = ''
+
+      // Validación en frontend primero
+      if (!this.validarFormulario()) return;
+
+      // Si pasa el frontend, enviamos al backend
       try {
         const res = await fetch(`${API}/auth/register`, {
           method: 'POST',
