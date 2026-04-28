@@ -1,9 +1,0 @@
-node_modules
-
-backend-deploy.yml
-backend-route.yml
-backend-service.yml
-
-Dockerfile
-
-npm-debug.log
