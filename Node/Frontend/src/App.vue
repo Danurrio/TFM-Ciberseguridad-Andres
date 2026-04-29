@@ -4,7 +4,6 @@
       <span class="logo">☁️ OpenDrive</span>
       <div class="nav-acciones">
         <span class="username">Hola, {{ username }} 👋</span>
-        <button @click="$router.push('/dashboard')" = 'inicio'">🏠 Inicio</button>
         <button
           v-if="esAdmin"
           @click="$router.push('/admin')"
