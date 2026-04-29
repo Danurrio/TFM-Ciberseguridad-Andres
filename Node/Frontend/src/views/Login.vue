@@ -38,6 +38,7 @@ export default {
         localStorage.setItem('token', data.token)
         localStorage.setItem('rol', data.rol)
         localStorage.setItem('username', data.username)
+        localStorage.setItem('password_must_change', data.password_must_change)
         this.$router.push('/dashboard')
         this.$emit('logged-in', { token: data.token, rol: data.rol, username: data.username })
       } catch (err) {

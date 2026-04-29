@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '../views/Dashboard.vue'
 import AdminPanel from '../views/AdminPanel.vue'
+import Logs from '../views/Logs.vue'
 
 function estaAutenticado() {
   return !!localStorage.getItem('token')
@@ -9,6 +10,10 @@ function estaAutenticado() {
 function tieneRolAdmin() {
   const rol = localStorage.getItem('rol')
   return ['superadmin', 'admin', 'soporte'].includes(rol)
+}
+
+function debecambiarPassword() {
+  return localStorage.getItem('password_must_change') === 'true'
 }
 
 const routes = [
@@ -25,10 +30,19 @@ const routes = [
     component: () => import('../views/Register.vue')
   },
   {
+    path: '/cambiar-password',
+    component: () => import('../views/CambiarPassword.vue'),
+    beforeEnter: (to, from, next) => {
+      if (!estaAutenticado()) return next('/login')
+      next()
+    }
+  },
+  {
     path: '/dashboard',
     component: Dashboard,
     beforeEnter: (to, from, next) => {
       if (!estaAutenticado()) return next('/login')
+      if (debecambiarPassword()) return next('/cambiar-password')
       next()
     }
   },
@@ -37,6 +51,17 @@ const routes = [
     component: AdminPanel,
     beforeEnter: (to, from, next) => {
       if (!estaAutenticado()) return next('/login')
+      if (debecambiarPassword()) return next('/cambiar-password')
+      if (!tieneRolAdmin()) return next('/dashboard')
+      next()
+    }
+  },
+  {
+    path: '/logs',
+    component: Logs,
+    beforeEnter: (to, from, next) => {
+      if (!estaAutenticado()) return next('/login')
+      if (debecambiarPassword()) return next('/cambiar-password')
       if (!tieneRolAdmin()) return next('/dashboard')
       next()
     }
@@ -44,15 +69,6 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'
-  },
-  {
-    path: '/logs',
-    component: () => import('../views/Logs.vue'),
-    beforeEnter: (to, from, next) => {
-      if (!estaAutenticado()) return next('/login')
-      if (!tieneRolAdmin()) return next('/dashboard')
-      next()
-    }
   }
 ]
 

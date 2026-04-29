@@ -6,6 +6,40 @@ const crypto = require('crypto');
 const pool = require('../db');
 const { logUser } = require('../logger');
 
+// Cambiar contraseña
+router.post('/cambiar-password', verificarToken, async (req, res) => {
+  const { password_actual, password_nueva } = req.body;
+
+  if (!password_actual || !password_nueva) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+  if (!passwordRegex.test(password_nueva)) {
+    return res.status(400).json({ error: 'La contraseña no cumple los requisitos de seguridad' });
+  }
+
+  try {
+    const result = await pool.query('SELECT * FROM usuarios WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+
+    const valid = await bcrypt.compare(password_actual, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'La contraseña actual no es correcta' });
+    }
+
+    const password_hash = await bcrypt.hash(password_nueva, 10);
+    await pool.query(
+      'UPDATE usuarios SET password_hash = $1, password_must_change = false WHERE id = $2',
+      [password_hash, req.user.id]
+    );
+
+    await logUser(req.user.id, 'CAMBIAR_PASSWORD', 'Cambio de contraseña exitoso', req.ip);
+    res.json({ message: 'Contraseña cambiada correctamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
 function validarEmail(email) {
