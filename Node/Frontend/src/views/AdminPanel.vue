@@ -69,11 +69,11 @@
 const API = 'http://backend-opendrive.apps-crc.testing';
 
 export default {
-  props: ['rolActual'],
   data() {
     return {
       usuarios: [],
-      cargando: true
+      cargando: true,
+      rolActual: localStorage.getItem('rol') || ''
     }
   },
   mounted() {
