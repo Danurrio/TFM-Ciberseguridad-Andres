@@ -14,7 +14,10 @@ app.use(express.json());
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const archivosRoutes = require('./routes/archivos');
+const logsRoutes = require('./routes/logs');
 
+
+app.use('/logs', logsRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/archivos', archivosRoutes);

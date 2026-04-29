@@ -73,3 +73,23 @@ CREATE TABLE archivos (
     eliminado BOOLEAN DEFAULT false,
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE admin_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(100) NOT NULL,
+    entidad VARCHAR(100),
+    entidad_id UUID,
+    detalle TEXT,
+    ip VARCHAR(45),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(100) NOT NULL,
+    detalle TEXT,
+    ip VARCHAR(45),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

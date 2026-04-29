@@ -44,6 +44,15 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'
+  },
+  {
+    path: '/logs',
+    component: () => import('../views/Logs.vue'),
+    beforeEnter: (to, from, next) => {
+      if (!estaAutenticado()) return next('/login')
+      if (!tieneRolAdmin()) return next('/dashboard')
+      next()
+    }
   }
 ]
 

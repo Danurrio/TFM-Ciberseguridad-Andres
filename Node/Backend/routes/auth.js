@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db');
+const { logUser } = require('../logger');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
@@ -100,7 +101,7 @@ router.post('/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '8h' }
     );
-
+    await logUser(user.id, 'LOGIN', `Login desde ${req.ip}`, req.ip);
     res.json({ 
       message: 'Login correcto', 
       token,

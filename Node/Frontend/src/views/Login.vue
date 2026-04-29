@@ -39,6 +39,7 @@ export default {
         localStorage.setItem('rol', data.rol)
         localStorage.setItem('username', data.username)
         this.$router.push('/dashboard')
+        this.$emit('logged-in', { token: data.token, rol: data.rol, username: data.username })
       } catch (err) {
         this.error = err.message
       }

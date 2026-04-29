@@ -4,6 +4,7 @@ const multer = require('multer');
 const pool = require('../db');
 const { minioClient, BUCKET } = require('../minio');
 const { verificarToken } = require('../middleware/auth');
+const { logUser } = require('../logger');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -88,6 +89,8 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
        VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
       [originalname, nombreObjeto, mimetype, size, req.user.id]
     );
+    await logUser(req.user.id, 'SUBIR_ARCHIVO', `Archivo: ${originalname}`, req.ip);
+ 
 
     // Actualizar espacio usado
     await pool.query(
@@ -119,6 +122,7 @@ router.get('/descargar/:id', verificarToken, async (req, res) => {
 
     res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
     res.setHeader('Content-Type', archivo.tipo);
+    await logUser(req.user.id, 'DESCARGAR_ARCHIVO', `Archivo: ${archivo.nombre}`, req.ip);
     stream.pipe(res);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -132,6 +136,8 @@ router.delete('/eliminar/:id', verificarToken, async (req, res) => {
       `UPDATE archivos SET eliminado = true WHERE id = $1 AND propietario_id = $2 RETURNING tamanio_bytes`,
       [req.params.id, req.user.id]
     );
+    await logUser(req.user.id, 'ELIMINAR_ARCHIVO', `Archivo ID: ${req.params.id}`, req.ip);
+
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Archivo no encontrado' });
