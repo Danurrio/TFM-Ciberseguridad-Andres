@@ -60,3 +60,16 @@ INSERT INTO roles (nombre, descripcion) VALUES
 
 ALTER TABLE usuarios ADD COLUMN activo BOOLEAN DEFAULT true;
 ALTER TABLE usuarios ADD COLUMN password_must_change BOOLEAN DEFAULT false;
+
+
+CREATE TABLE archivos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(255) NOT NULL,
+    nombre_objeto VARCHAR(255) NOT NULL,
+    tipo VARCHAR(100),
+    tamanio_bytes BIGINT NOT NULL,
+    propietario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    almacen_id UUID REFERENCES almacenes(id) ON DELETE CASCADE,
+    eliminado BOOLEAN DEFAULT false,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
