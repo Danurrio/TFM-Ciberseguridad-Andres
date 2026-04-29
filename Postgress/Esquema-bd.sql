@@ -51,3 +51,12 @@ CREATE TABLE usuario_almacen_permisos (
     PRIMARY KEY (usuario_id, almacen_id, permiso_id),
     FOREIGN KEY (usuario_id, almacen_id) REFERENCES usuario_almacen(usuario_id, almacen_id) ON DELETE CASCADE
 );
+
+INSERT INTO roles (nombre, descripcion) VALUES
+  ('superadmin', 'Control total del sistema sin restricciones'),
+  ('admin', 'Gestión de usuarios y roles con restricciones'),
+  ('soporte', 'Visualización de usuarios y reset de contraseñas'),
+  ('usuario', 'Acceso estándar al almacenamiento personal');
+
+ALTER TABLE usuarios ADD COLUMN activo BOOLEAN DEFAULT true;
+ALTER TABLE usuarios ADD COLUMN password_must_change BOOLEAN DEFAULT false;

@@ -5,17 +5,18 @@ const PORT = process.env.PORT || 8080;
 
 app.use(cors({
   origin: 'http://frontend-opendrive.apps-crc.testing',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
-// Rutas
 const authRoutes = require('./routes/auth');
-app.use('/auth', authRoutes);
+const adminRoutes = require('./routes/admin');
 
-// Health checks
+app.use('/auth', authRoutes);
+app.use('/admin', adminRoutes);
+
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'OpenDrive backend funcionando' });
 });

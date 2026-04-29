@@ -69,7 +69,10 @@ router.post('/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT * FROM usuarios WHERE email = $1',
+      `SELECT u.*, r.nombre as rol 
+       FROM usuarios u 
+       LEFT JOIN roles r ON u.rol_id = r.id
+       WHERE u.email = $1`,
       [email]
     );
 
@@ -78,17 +81,20 @@ router.post('/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
 
+    if (!user.activo) {
+      return res.status(403).json({ error: 'Tu cuenta está deshabilitada. Contacta con soporte.' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
-    // CSRF token generado en cada login, viaja dentro del JWT
     const csrf_token = crypto.randomBytes(32).toString('hex');
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, email: user.email, csrf_token },
+      { id: user.id, username: user.username, email: user.email, rol: user.rol, csrf_token },
       JWT_SECRET,
       { expiresIn: '8h' }
     );
@@ -96,7 +102,9 @@ router.post('/login', async (req, res) => {
     res.json({ 
       message: 'Login correcto', 
       token,
-      csrf_token
+      csrf_token,
+      password_must_change: user.password_must_change,
+      rol: user.rol
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
