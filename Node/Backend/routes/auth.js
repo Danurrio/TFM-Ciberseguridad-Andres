@@ -43,11 +43,13 @@ router.post('/register', async (req, res) => {
 
   try {
     const password_hash = await bcrypt.hash(password, 10);
+    const rolUsuario = await pool.query("SELECT id FROM roles WHERE nombre = 'usuario'");
+    const rol_id = rolUsuario.rows[0]?.id || null;
 
     const result = await pool.query(
-      `INSERT INTO usuarios (username, email, password_hash, nombre, apellido, telefono, direccion)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, email`,
-      [username, email, password_hash, nombre, apellido, telefono || null, direccion || null]
+      `INSERT INTO usuarios (username, email, password_hash, nombre, apellido, telefono, direccion, rol_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, email`,
+      [username, email, password_hash, nombre, apellido, telefono || null, direccion || null, rol_id]
     );
 
     res.status(201).json({ message: 'Usuario creado', user: result.rows[0] });
