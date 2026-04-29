@@ -13,9 +13,12 @@ app.use(express.json());
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const archivosRoutes = require('./routes/archivos');
 
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
+app.use('/archivos', archivosRoutes);
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'OpenDrive backend funcionando' });

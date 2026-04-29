@@ -2,8 +2,8 @@
   <div class="app">
     <nav v-if="loggedIn" class="navbar">
       <span class="logo">☁️ OpenDrive</span>
-      <div class="nav-links">
-        <button @click="$router.push('/dashboard')">🏠 Inicio</button>
+      <div class="nav-acciones">
+        <span class="username">Hola, {{ username }} 👋</span>
         <button
           v-if="esAdmin"
           @click="$router.push('/admin')"
@@ -22,6 +22,9 @@ export default {
   computed: {
     loggedIn() {
       return !!localStorage.getItem('token')
+    },
+    username() {
+      return localStorage.getItem('username') || ''
     },
     esAdmin() {
       const rol = localStorage.getItem('rol')
