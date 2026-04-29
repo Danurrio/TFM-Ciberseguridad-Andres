@@ -42,9 +42,10 @@
           <button class="btn-toggle" @click="vistaGrid = !vistaGrid">
             {{ vistaGrid ? '☰ Lista' : '⊞ Cuadrícula' }}
           </button>
-          <button class="btn-subir" v-if="seccion === 'mis-archivos'">
+          <button class="btn-subir" v-if="seccion === 'mis-archivos'" @click="$refs.inputArchivo.click()">
             ⬆️ Subir archivo
           </button>
+          <input ref="inputArchivo" type="file" style="display:none" @change="subirArchivo" />
         </div>
       </div>
 
@@ -59,8 +60,12 @@
         <div v-if="vistaGrid" class="grid-archivos">
           <div class="archivo-card" v-for="archivo in archivos" :key="archivo.id">
             <div class="archivo-icono">{{ iconoArchivo(archivo.tipo) }}</div>
-            <p class="archivo-nombre">{{ archivo.nombre }}</p>
-            <p class="archivo-fecha">{{ archivo.fecha }}</p>
+              <p class="archivo-nombre">{{ archivo.nombre }}</p>
+              <p class="archivo-fecha">{{ new Date(archivo.creado_en).toLocaleDateString() }}</p>
+              <div class="archivo-acciones">
+                <button class="btn-mini" @click="descargarArchivo(archivo.id, archivo.nombre)">⬇️</button>
+                <button class="btn-mini btn-mini-danger" @click="eliminarArchivo(archivo.id)">🗑️</button>
+            </div>
           </div>
           <div v-if="archivos.length === 0" class="vacio">
             No tienes archivos todavía.<br>¡Sube tu primer archivo!
@@ -69,7 +74,11 @@
         <div v-else class="lista-archivos">
           <div class="archivo-fila" v-for="archivo in archivos" :key="archivo.id">
             <span>{{ iconoArchivo(archivo.tipo) }} {{ archivo.nombre }}</span>
-            <span class="archivo-fecha">{{ archivo.fecha }}</span>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <span class="archivo-fecha">{{ new Date(archivo.creado_en).toLocaleDateString() }}</span>
+              <button class="btn-mini" @click="descargarArchivo(archivo.id, archivo.nombre)">⬇️</button>
+              <button class="btn-mini btn-mini-danger" @click="eliminarArchivo(archivo.id)">🗑️</button>
+            </div>
           </div>
           <div v-if="archivos.length === 0" class="vacio">
             No tienes archivos todavía.<br>¡Sube tu primer archivo!
@@ -128,9 +137,10 @@ export default {
       return titulos[this.seccion];
     }
   },
-  mounted() {
+  async mounted() {
     this.cargarNotificaciones();
     this.cargarEspacio();
+    this.cargarArchivos();
   },
   methods: {
     headers() {
@@ -163,8 +173,53 @@ export default {
         'audio': '🎵', 'zip': '📦', 'doc': '📝'
       };
       return iconos[tipo] || '📁';
+    },
+    async subirArchivo(event) {
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+
+        const formData = new FormData();
+        formData.append('archivo', archivo);
+
+        try {
+          const res = await fetch(`${API}/archivos/subir`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            body: formData
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          await this.cargarArchivos();
+          await this.cargarEspacio();
+        } catch (err) {
+          console.error(err);
+        }
+    },
+
+    async descargarArchivo(id, nombre) {
+      const res = await fetch(`${API}/archivos/descargar/${id}`, {
+        headers: this.headers()
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    async eliminarArchivo(id) {
+      if (!confirm('¿Mover a la papelera?')) return;
+      await fetch(`${API}/archivos/eliminar/${id}`, {
+        method: 'DELETE',
+        headers: this.headers()
+      });
+      await this.cargarArchivos();
+      await this.cargarEspacio();
     }
   }
+
 }
 </script>
 
@@ -330,4 +385,19 @@ export default {
   font-size: 1rem;
   line-height: 2;
 }
+.archivo-acciones {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-mini {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  background: #334155;
+}
+
+.btn-mini-danger { background: #7f1d1d; }
 </style>
