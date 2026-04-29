@@ -103,8 +103,9 @@ router.post('/login', async (req, res) => {
       message: 'Login correcto', 
       token,
       csrf_token,
-      password_must_change: user.password_must_change,
-      rol: user.rol
+      rol: user.rol,
+      username: user.username,
+      password_must_change: user.password_must_change
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

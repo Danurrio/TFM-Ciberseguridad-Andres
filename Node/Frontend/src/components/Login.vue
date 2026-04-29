@@ -38,7 +38,8 @@ export default {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
         localStorage.setItem('token', data.token)
-        this.$emit('logged-in', data.token)
+        localStorage.setItem('rol', data.rol)
+        this.$emit('logged-in', { token: data.token, rol: data.rol, username: data.username })
       } catch (err) {
         this.error = err.message
       }
