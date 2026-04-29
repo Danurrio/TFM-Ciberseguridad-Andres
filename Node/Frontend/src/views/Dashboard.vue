@@ -167,6 +167,14 @@ export default {
         console.error(err);
       }
     },
+    async cargarArchivos() {
+      try {
+        const res = await fetch(`${API}/archivos/lista`, { headers: this.headers() });
+        this.archivos = await res.json();
+      } catch (err) {
+        console.error(err);
+      }
+    },
     iconoArchivo(tipo) {
       const iconos = {
         'pdf': '📄', 'image': '🖼️', 'video': '🎬',
@@ -195,6 +203,7 @@ export default {
           console.error(err);
         }
     },
+    
 
     async descargarArchivo(id, nombre) {
       const res = await fetch(`${API}/archivos/descargar/${id}`, {
