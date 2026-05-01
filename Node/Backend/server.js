@@ -41,6 +41,20 @@ app.get('/', (req, res) => {
   res.json({ message: 'Bienvenido a OpenDrive API' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
+
+  // ✅ FIX: verificar y crear el bucket de MinIO si no existe al arrancar
+  try {
+    const { minioClient, BUCKET } = require('./minio');
+    const exists = await minioClient.bucketExists(BUCKET);
+    if (!exists) {
+      await minioClient.makeBucket(BUCKET);
+      console.log(`Bucket '${BUCKET}' creado correctamente`);
+    } else {
+      console.log(`Bucket '${BUCKET}' ya existe`);
+    }
+  } catch (err) {
+    console.error('Error al verificar/crear bucket de MinIO:', err.message);
+  }
 });
