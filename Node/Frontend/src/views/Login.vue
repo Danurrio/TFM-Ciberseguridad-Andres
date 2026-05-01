@@ -6,7 +6,7 @@
     </div>
     <div class="form-box">
       <h2>Iniciar sesión</h2>
-      <input v-model="email" type="email" placeholder="Email" />
+      <input v-model="identificador" type="text" placeholder="Email o usuario" />
       <input v-model="password" type="password" placeholder="Contraseña" />
       <button @click="login">Entrar</button>
       <p v-if="error" class="error">{{ error }}</p>
@@ -22,7 +22,7 @@ const API = 'http://backend-opendrive.apps-crc.testing';
 
 export default {
   data() {
-    return { email: '', password: '', error: '' }
+    return { identificador: '', password: '', error: '' }
   },
   methods: {
     async login() {
@@ -31,7 +31,7 @@ export default {
         const res = await fetch(`${API}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: this.email, password: this.password })
+          body: JSON.stringify({ identificador: this.identificador, password: this.password })
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)

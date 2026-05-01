@@ -98,10 +98,10 @@ router.post('/register', async (req, res) => {
 
 // Login
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { identificador, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
+  if (!identificador || !password) {
+    return res.status(400).json({ error: 'Usuario/email y contraseña son obligatorios' });
   }
 
   try {
@@ -109,8 +109,8 @@ router.post('/login', async (req, res) => {
       `SELECT u.*, r.nombre as rol 
        FROM usuarios u 
        LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.email = $1`,
-      [email]
+       WHERE u.email = $1 OR u.username = $1`,
+      [identificador]
     );
 
     if (result.rows.length === 0) {
