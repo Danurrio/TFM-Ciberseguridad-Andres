@@ -14,8 +14,9 @@
       </div>
       <div class="input-row">
         <span v-if="errores.nombre" class="field-error">{{ errores.nombre }}</span>
-        <span v-if="errores.apellido" class="field-error">{{ errores.apellido }}</span>
+        
       </div>
+      <span v-if="errores.apellido" class="field-error">{{ errores.apellido }}</span>
 
       <input v-model="username" type="text" placeholder="Usuario *" :class="{ 'input-error': errores.username }" @blur="validarCampo('username')" />
       <span v-if="errores.username" class="field-error">{{ errores.username }}</span>
