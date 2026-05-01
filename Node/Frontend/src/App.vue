@@ -42,7 +42,9 @@ export default {
       localStorage.removeItem('token')
       localStorage.removeItem('rol')
       localStorage.removeItem('username')
+      localStorage.removeItem('password_must_change') 
       this.$router.push('/login')
+
     }
   }
 }

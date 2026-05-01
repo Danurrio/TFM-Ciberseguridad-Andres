@@ -84,6 +84,9 @@ router.patch('/usuarios/:id/rol', verificarToken, soloRoles('superadmin', 'admin
 
 router.delete('/usuarios/:id', verificarToken, soloRoles('superadmin'), async (req, res) => {
   const { id } = req.params;
+  if (id === req.user.id) {
+    return res.status(403).json({ error: 'No puedes eliminar tu propia cuenta' });
+  }
   try {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
     await logAdmin(req.user.id, 'ELIMINAR_USUARIO', 'usuarios', id, null, req.ip);

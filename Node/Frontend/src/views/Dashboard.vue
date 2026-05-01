@@ -176,11 +176,16 @@ export default {
       }
     },
     iconoArchivo(tipo) {
-      const iconos = {
-        'pdf': '📄', 'image': '🖼️', 'video': '🎬',
-        'audio': '🎵', 'zip': '📦', 'doc': '📝'
-      };
-      return iconos[tipo] || '📁';
+      // ✅ FIX: el tipo guardado en BD es MIME completo (image/png, application/pdf...)
+      // antes buscaba claves cortas ('pdf', 'image') que nunca coincidían, mostrando siempre 📁
+      if (!tipo) return '📁';
+      if (tipo.includes('pdf')) return '📄';
+      if (tipo.includes('image')) return '🖼️';
+      if (tipo.includes('video')) return '🎬';
+      if (tipo.includes('audio')) return '🎵';
+      if (tipo.includes('zip') || tipo.includes('compressed') || tipo.includes('x-tar')) return '📦';
+      if (tipo.includes('word') || tipo.includes('document') || tipo.includes('msword')) return '📝';
+      return '📁';
     },
     async subirArchivo(event) {
         const archivo = event.target.files[0];
