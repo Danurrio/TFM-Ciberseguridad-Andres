@@ -10,13 +10,15 @@
       <!-- Nombre y apellido en fila -->
       <div class="input-row">
         <input v-model="nombre" type="text" placeholder="Nombre *" :class="{ 'input-error': errores.nombre }" @blur="validarCampo('nombre')" />
-        <input v-model="apellido" type="text" placeholder="Apellido *" :class="{ 'input-error': errores.apellido }" @blur="validarCampo('apellido')" />
-      </div>
-      <div class="input-row">
-        <span v-if="errores.nombre" class="field-error">{{ errores.nombre }}</span>
         
       </div>
-      <span v-if="errores.apellido" class="field-error">{{ errores.apellido }}</span>
+        <input v-model="apellido" type="text" placeholder="Apellido *" :class="{ 'input-error': errores.apellido }" @blur="validarCampo('apellido')" />
+      <div class="input-row">
+        <span v-if="errores.nombre || errores.apellido" class="field-error">
+          {{ errores.nombre || errores.apellido }}
+        </span>
+      </div>
+      
 
       <input v-model="username" type="text" placeholder="Usuario *" :class="{ 'input-error': errores.username }" @blur="validarCampo('username')" />
       <span v-if="errores.username" class="field-error">{{ errores.username }}</span>
