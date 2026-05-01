@@ -3,10 +3,9 @@ const router = express.Router();
 const pool = require('../db');
 const { verificarToken, soloRoles } = require('../middleware/auth');
 
-// ✅ FIX: paginación con ?page=1&limit=50 en ambos endpoints
 // Logs de administración
 router.get('/admin', verificarToken, soloRoles('superadmin', 'admin'), async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200); // máximo 200 por página
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200); 
   const page  = Math.max(parseInt(req.query.page)  || 1, 1);
   const offset = (page - 1) * limit;
 

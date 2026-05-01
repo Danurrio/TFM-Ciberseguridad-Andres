@@ -44,7 +44,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, async () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 
-  // ✅ FIX: verificar y crear el bucket de MinIO si no existe al arrancar
   try {
     const { minioClient, BUCKET } = require('./minio');
     const exists = await minioClient.bucketExists(BUCKET);
