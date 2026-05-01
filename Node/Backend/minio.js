@@ -5,7 +5,7 @@ const minioClient = new Minio.Client({
   port: parseInt(process.env.MINIO_PORT) || 9000,
   useSSL: false,
   accessKey: process.env.MINIO_ROOT_USER || 'opendrive_minio',
-  secretKey: process.env.MINIO_ROOT_PASSWORD || 'Minio2025!Secure'
+  secretKey: process.env.MINIO_ROOT_PASSWORD 
 });
 
 const BUCKET = process.env.MINIO_BUCKET || 'opendrive';
