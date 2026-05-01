@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db');
 const { logUser } = require('../logger');
+const { verificarToken } = require('../middleware/auth');
 const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
 router.post('/cambiar-password', verificarToken, async (req, res) => {
