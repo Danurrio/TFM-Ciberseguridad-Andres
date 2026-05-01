@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db');
 const { logUser } = require('../logger');
+const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
-// Cambiar contraseña
 router.post('/cambiar-password', verificarToken, async (req, res) => {
   const { password_actual, password_nueva } = req.body;
 
@@ -40,7 +40,6 @@ router.post('/cambiar-password', verificarToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
 
 function validarEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

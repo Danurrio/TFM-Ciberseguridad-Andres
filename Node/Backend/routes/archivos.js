@@ -79,15 +79,26 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
 
   try {
     // Subir a MinIO
+    const cuota = await pool.query(
+      `SELECT cuota_maxima_bytes, espacio_usado_bytes, almacen_id FROM usuario_almacen WHERE usuario_id = $1`,
+      [req.user.id]
+    );
+    if (cuota.rows.length === 0) {
+      return res.status(403).json({ error: 'No tienes ningún almacén asignado' });
+    }
+    const { cuota_maxima_bytes, espacio_usado_bytes, almacen_id } = cuota.rows[0];
+    if ((espacio_usado_bytes + size) > cuota_maxima_bytes) {
+      return res.status(400).json({ error: 'No tienes espacio suficiente' });
+    }
     await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, {
       'Content-Type': mimetype
     });
 
     // Guardar en PostgreSQL
     const result = await pool.query(
-      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
-      [originalname, nombreObjeto, mimetype, size, req.user.id]
+      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, almacen_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
+      [originalname, nombreObjeto, mimetype, size, req.user.id, almacen_id]
     );
     await logUser(req.user.id, 'SUBIR_ARCHIVO', `Archivo: ${originalname}`, req.ip);
  
@@ -95,8 +106,8 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
     // Actualizar espacio usado
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes + $1
-       WHERE usuario_id = $2`,
-      [size, req.user.id]
+       WHERE usuario_id = $2 AND almacen_id = $3`,
+      [size, req.user.id, almacen_id]
     );
 
     res.status(201).json({ message: 'Archivo subido', archivo: result.rows[0] });
