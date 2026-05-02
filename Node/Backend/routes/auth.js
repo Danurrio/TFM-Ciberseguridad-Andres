@@ -76,12 +76,15 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'El teléfono no tiene un formato válido' });
   }
 
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     const password_hash = await bcrypt.hash(password, 10);
-    const rolUsuario = await pool.query("SELECT id FROM roles WHERE nombre = 'usuario'");
+    const rolUsuario = await client.query("SELECT id FROM roles WHERE nombre = 'usuario'");
     const rol_id = rolUsuario.rows[0]?.id || null;
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO usuarios (username, email, password_hash, nombre, apellido, telefono, direccion, rol_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, email`,
       [username, email, password_hash, nombre, apellido, telefono || null, direccion || null, rol_id]
@@ -89,25 +92,29 @@ router.post('/register', async (req, res) => {
 
     const nuevoUsuario = result.rows[0];
 
-    // ✅ Crear almacén personal con 20 MB de cuota por defecto
+    // Crear almacén personal con 20 MB de cuota por defecto dentro de la misma transacción
     const CUOTA_DEFAULT = 20 * 1024 * 1024; // 20 MB en bytes
-    const almacen = await pool.query(
+    const almacen = await client.query(
       `INSERT INTO almacenes (nombre, espacio_total_bytes)
        VALUES ($1, $2) RETURNING id`,
       [`Personal de ${username}`, CUOTA_DEFAULT]
     );
-    await pool.query(
+    await client.query(
       `INSERT INTO usuario_almacen (usuario_id, almacen_id, cuota_maxima_bytes, espacio_usado_bytes)
        VALUES ($1, $2, $3, 0)`,
       [nuevoUsuario.id, almacen.rows[0].id, CUOTA_DEFAULT]
     );
 
+    await client.query('COMMIT');
     res.status(201).json({ message: 'Usuario creado', user: nuevoUsuario });
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === '23505') {
       return res.status(409).json({ error: 'El usuario o email ya existe' });
     }
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
