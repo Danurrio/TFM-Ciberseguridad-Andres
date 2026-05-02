@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '../views/Dashboard.vue'
 import AdminPanel from '../views/AdminPanel.vue'
 import Logs from '../views/Logs.vue'
+import Boveda from '../views/Boveda.vue'
 
 function estaAutenticado() {
   return !!localStorage.getItem('token')
@@ -66,6 +67,16 @@ const routes = [
       next()
     }
   },
+  { 
+    path: '/boveda/:id', 
+    component: Boveda, 
+    beforeEnter: (to, from, next) => {
+      if (!estaAutenticado()) return next('/login')
+      if (debecambiarPassword()) return next('/cambiar-password')
+      next()
+    }
+  },
+  
   {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard'

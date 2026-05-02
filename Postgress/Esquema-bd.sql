@@ -93,3 +93,36 @@ CREATE TABLE user_logs (
     ip VARCHAR(45),
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+CREATE TABLE bovedas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    creador_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    espacio_total_bytes BIGINT NOT NULL,
+    espacio_usado_bytes BIGINT DEFAULT 0,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+INSERT INTO permisos (nombre, descripcion) VALUES
+  ('boveda_leer',    'Ver y descargar archivos de la bóveda'),
+  ('boveda_subir',   'Subir archivos a la bóveda'),
+  ('boveda_borrar',  'Eliminar archivos de la bóveda'),
+  ('boveda_gestionar','Gestionar miembros de la bóveda (excepto al creador)');
+
+
+CREATE TABLE boveda_miembros (
+    boveda_id UUID REFERENCES bovedas(id) ON DELETE CASCADE,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    puede_leer     BOOLEAN DEFAULT true,
+    puede_subir    BOOLEAN DEFAULT false,
+    puede_borrar   BOOLEAN DEFAULT false,
+    puede_gestionar BOOLEAN DEFAULT false,
+    invitado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (boveda_id, usuario_id)
+);
+
+
+ALTER TABLE archivos ADD COLUMN boveda_id UUID REFERENCES bovedas(id) ON DELETE CASCADE;

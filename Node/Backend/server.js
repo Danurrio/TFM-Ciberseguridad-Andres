@@ -15,8 +15,10 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const archivosRoutes = require('./routes/archivos');
 const logsRoutes = require('./routes/logs');
+const bovedaRoutes = require('./routes/boveda');
 
 
+app.use('/boveda', bovedaRoutes);
 app.use('/logs', logsRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);

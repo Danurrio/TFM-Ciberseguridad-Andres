@@ -87,7 +87,22 @@ router.post('/register', async (req, res) => {
       [username, email, password_hash, nombre, apellido, telefono || null, direccion || null, rol_id]
     );
 
-    res.status(201).json({ message: 'Usuario creado', user: result.rows[0] });
+    const nuevoUsuario = result.rows[0];
+
+    // ✅ Crear almacén personal con 20 MB de cuota por defecto
+    const CUOTA_DEFAULT = 20 * 1024 * 1024; // 20 MB en bytes
+    const almacen = await pool.query(
+      `INSERT INTO almacenes (nombre, espacio_total_bytes)
+       VALUES ($1, $2) RETURNING id`,
+      [`Personal de ${username}`, CUOTA_DEFAULT]
+    );
+    await pool.query(
+      `INSERT INTO usuario_almacen (usuario_id, almacen_id, cuota_maxima_bytes, espacio_usado_bytes)
+       VALUES ($1, $2, $3, 0)`,
+      [nuevoUsuario.id, almacen.rows[0].id, CUOTA_DEFAULT]
+    );
+
+    res.status(201).json({ message: 'Usuario creado', user: nuevoUsuario });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'El usuario o email ya existe' });
