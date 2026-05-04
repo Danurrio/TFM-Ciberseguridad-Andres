@@ -10,9 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
-// Comprueba si el usuario tiene acceso a la bóveda y qué permisos tiene
 async function obtenerAcceso(bovedaId, usuarioId) {
-  // El creador tiene acceso total
   const creador = await pool.query(
     `SELECT id FROM bovedas WHERE id = $1 AND creador_id = $2`,
     [bovedaId, usuarioId]
@@ -21,7 +19,6 @@ async function obtenerAcceso(bovedaId, usuarioId) {
     return { esCreador: true, puede_leer: true, puede_subir: true, puede_borrar: true, puede_gestionar: true };
   }
 
-  // Miembro con permisos
   const miembro = await pool.query(
     `SELECT puede_leer, puede_subir, puede_borrar, puede_gestionar
      FROM boveda_miembros WHERE boveda_id = $1 AND usuario_id = $2`,
@@ -31,12 +28,11 @@ async function obtenerAcceso(bovedaId, usuarioId) {
     return { esCreador: false, ...miembro.rows[0] };
   }
 
-  return null; // sin acceso
+  return null;
 }
 
 // ─── BÓVEDAS ────────────────────────────────────────────────────────────────
 
-// Crear bóveda (dedica espacio del almacén personal del creador)
 router.post('/crear', verificarToken, async (req, res) => {
   const { nombre, descripcion, espacio_bytes } = req.body;
 
@@ -48,7 +44,6 @@ router.post('/crear', verificarToken, async (req, res) => {
   }
 
   try {
-    // Verificar que el usuario tiene suficiente espacio libre en su almacén personal
     const cuota = await pool.query(
       `SELECT almacen_id, cuota_maxima_bytes, espacio_usado_bytes
        FROM usuario_almacen WHERE usuario_id = $1`,
@@ -70,14 +65,12 @@ router.post('/crear', verificarToken, async (req, res) => {
       });
     }
 
-    // Descontar el espacio de la cuota personal del creador
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes + $1
        WHERE usuario_id = $2 AND almacen_id = $3`,
       [espacio_bytes, req.user.id, almacen_id]
     );
 
-    // Crear la bóveda
     const boveda = await pool.query(
       `INSERT INTO bovedas (nombre, descripcion, creador_id, espacio_total_bytes)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -91,7 +84,6 @@ router.post('/crear', verificarToken, async (req, res) => {
   }
 });
 
-// Bóvedas creadas por el usuario
 router.get('/mias', verificarToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -110,7 +102,6 @@ router.get('/mias', verificarToken, async (req, res) => {
   }
 });
 
-// Bóvedas compartidas conmigo
 router.get('/compartidas', verificarToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -129,7 +120,6 @@ router.get('/compartidas', verificarToken, async (req, res) => {
   }
 });
 
-// Detalle de una bóveda
 router.get('/:id', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
@@ -149,7 +139,6 @@ router.get('/:id', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar bóveda (solo creador) — devuelve el espacio al creador
 router.delete('/:id', verificarToken, async (req, res) => {
   try {
     const boveda = await pool.query(
@@ -162,7 +151,6 @@ router.delete('/:id', verificarToken, async (req, res) => {
 
     const { espacio_total_bytes } = boveda.rows[0];
 
-    // Devolver el espacio reservado al almacén personal del creador
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes - $1
        WHERE usuario_id = $2`,
@@ -179,7 +167,6 @@ router.delete('/:id', verificarToken, async (req, res) => {
 
 // ─── MIEMBROS ───────────────────────────────────────────────────────────────
 
-// Listar miembros
 router.get('/:id/miembros', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
@@ -199,7 +186,6 @@ router.get('/:id/miembros', verificarToken, async (req, res) => {
   }
 });
 
-// Invitar usuario (por username o email)
 router.post('/:id/miembros', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
@@ -214,7 +200,6 @@ router.post('/:id/miembros', verificarToken, async (req, res) => {
   }
 
   try {
-    // Buscar usuario por username o email
     const usuario = await pool.query(
       `SELECT id, username FROM usuarios WHERE username = $1 OR email = $1`,
       [identificador]
@@ -225,18 +210,15 @@ router.post('/:id/miembros', verificarToken, async (req, res) => {
 
     const invitado = usuario.rows[0];
 
-    // No puede invitarse a sí mismo
     if (invitado.id === req.user.id) {
       return res.status(400).json({ error: 'No puedes invitarte a ti mismo' });
     }
 
-    // No puede invitar al creador si no es el creador
     const boveda = await pool.query(`SELECT creador_id FROM bovedas WHERE id = $1`, [req.params.id]);
     if (invitado.id === boveda.rows[0].creador_id) {
       return res.status(400).json({ error: 'El creador ya tiene acceso total' });
     }
 
-    // Un gestor no puede asignar puede_gestionar
     if (!acceso.esCreador && puede_gestionar) {
       return res.status(403).json({ error: 'Solo el creador puede asignar permisos de gestión' });
     }
@@ -256,7 +238,6 @@ router.post('/:id/miembros', verificarToken, async (req, res) => {
   }
 });
 
-// Editar permisos de un miembro
 router.patch('/:id/miembros/:uid/permisos', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
@@ -267,13 +248,11 @@ router.patch('/:id/miembros/:uid/permisos', verificarToken, async (req, res) => 
   const { puede_leer, puede_subir, puede_borrar, puede_gestionar } = req.body;
 
   try {
-    // No se pueden editar los permisos del creador
     const boveda = await pool.query(`SELECT creador_id FROM bovedas WHERE id = $1`, [req.params.id]);
     if (req.params.uid === boveda.rows[0].creador_id) {
       return res.status(403).json({ error: 'No puedes editar los permisos del creador' });
     }
 
-    // Un gestor no puede asignar puede_gestionar
     if (!acceso.esCreador && puede_gestionar) {
       return res.status(403).json({ error: 'Solo el creador puede asignar permisos de gestión' });
     }
@@ -297,7 +276,6 @@ router.patch('/:id/miembros/:uid/permisos', verificarToken, async (req, res) => 
   }
 });
 
-// Revocar acceso
 router.delete('/:id/miembros/:uid', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
@@ -306,13 +284,11 @@ router.delete('/:id/miembros/:uid', verificarToken, async (req, res) => {
   }
 
   try {
-    // No se puede revocar al creador
     const boveda = await pool.query(`SELECT creador_id FROM bovedas WHERE id = $1`, [req.params.id]);
     if (req.params.uid === boveda.rows[0].creador_id) {
       return res.status(403).json({ error: 'No puedes revocar el acceso al creador' });
     }
 
-    // Un gestor no puede revocar a otro gestor
     if (!acceso.esCreador) {
       const objetivo = await pool.query(
         `SELECT puede_gestionar FROM boveda_miembros WHERE boveda_id = $1 AND usuario_id = $2`,
@@ -337,19 +313,23 @@ router.delete('/:id/miembros/:uid', verificarToken, async (req, res) => {
 
 // ─── ARCHIVOS DE BÓVEDA ─────────────────────────────────────────────────────
 
-// Listar archivos
+// Listar archivos — FIX: se pasaba $2 en la query pero solo 1 parámetro al driver
 router.get('/:id/archivos', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso || !acceso.puede_leer) return res.status(403).json({ error: 'Sin permiso de lectura' });
+
+  const { carpeta_id } = req.query;
 
   try {
     const result = await pool.query(
       `SELECT a.id, a.nombre, a.tipo, a.tamanio_bytes, a.creado_en, u.username as subido_por
        FROM archivos a
        JOIN usuarios u ON a.propietario_id = u.id
-       WHERE a.boveda_id = $1 AND a.eliminado = false AND a.carpeta_id IS NOT DISTINCT FROM $2
+       WHERE a.boveda_id = $1
+         AND a.eliminado = false
+         AND a.carpeta_id IS NOT DISTINCT FROM $2
        ORDER BY a.creado_en DESC`,
-      [req.params.id]
+      [req.params.id, carpeta_id || null]   // ← FIX: ahora se pasan ambos parámetros
     );
     res.json(result.rows);
   } catch (err) {
@@ -357,7 +337,7 @@ router.get('/:id/archivos', verificarToken, async (req, res) => {
   }
 });
 
-// Subir archivo a bóveda
+// Subir archivo a bóveda — añadido soporte carpeta_id
 router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso || !acceso.puede_subir) return res.status(403).json({ error: 'Sin permiso de subida' });
@@ -365,9 +345,9 @@ router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), asy
   if (!req.file) return res.status(400).json({ error: 'No se ha enviado ningún archivo' });
 
   const { originalname, mimetype, buffer, size } = req.file;
+  const carpeta_id = req.body.carpeta_id || null;  // ← NUEVO
 
   try {
-    // Verificar espacio en la bóveda
     const boveda = await pool.query(
       `SELECT espacio_total_bytes, espacio_usado_bytes FROM bovedas WHERE id = $1`,
       [req.params.id]
@@ -380,13 +360,24 @@ router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), asy
       });
     }
 
+    // Si se especifica carpeta, verificar que pertenece a esta bóveda
+    if (carpeta_id) {
+      const carpeta = await pool.query(
+        `SELECT id FROM carpetas WHERE id = $1 AND boveda_id = $2`,
+        [carpeta_id, req.params.id]
+      );
+      if (carpeta.rows.length === 0) {
+        return res.status(404).json({ error: 'Carpeta no encontrada en esta bóveda' });
+      }
+    }
+
     const nombreObjeto = `bovedas/${req.params.id}/${Date.now()}-${originalname}`;
     await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, { 'Content-Type': mimetype });
 
     const result = await pool.query(
-      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, boveda_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
-      [originalname, nombreObjeto, mimetype, size, req.user.id, req.params.id]
+      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, boveda_id, carpeta_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
+      [originalname, nombreObjeto, mimetype, size, req.user.id, req.params.id, carpeta_id]  // ← FIX
     );
 
     await pool.query(
@@ -401,7 +392,6 @@ router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), asy
   }
 });
 
-// Descargar archivo de bóveda
 router.get('/:id/archivos/:fid/descargar', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso || !acceso.puede_leer) return res.status(403).json({ error: 'Sin permiso de lectura' });
@@ -424,7 +414,6 @@ router.get('/:id/archivos/:fid/descargar', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar archivo de bóveda
 router.delete('/:id/archivos/:fid', verificarToken, async (req, res) => {
   const acceso = await obtenerAcceso(req.params.id, req.user.id);
   if (!acceso || !acceso.puede_borrar) return res.status(403).json({ error: 'Sin permiso de borrado' });
