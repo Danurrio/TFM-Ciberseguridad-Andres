@@ -86,7 +86,10 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
     if (cuota.rows.length === 0) {
       return res.status(403).json({ error: 'No tienes ningún almacén asignado' });
     }
-    const { cuota_maxima_bytes, espacio_usado_bytes, almacen_id } = cuota.rows[0];
+    const { almacen_id } = cuota.rows[0];
+    // ✅ FIX: PostgreSQL devuelve BIGINT como string, hay que convertir a número
+    const cuota_maxima_bytes = parseInt(cuota.rows[0].cuota_maxima_bytes);
+    const espacio_usado_bytes = parseInt(cuota.rows[0].espacio_usado_bytes);
     if ((espacio_usado_bytes + size) > cuota_maxima_bytes) {
       return res.status(400).json({ error: 'No tienes espacio suficiente' });
     }
