@@ -126,3 +126,26 @@ CREATE TABLE boveda_miembros (
 
 
 ALTER TABLE archivos ADD COLUMN boveda_id UUID REFERENCES bovedas(id) ON DELETE CASCADE;
+
+-- Tabla de carpetas (soporta subcarpetas con parent_id)
+CREATE TABLE carpetas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(255) NOT NULL,
+    boveda_id UUID REFERENCES bovedas(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES carpetas(id) ON DELETE CASCADE,
+    creador_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Permisos por carpeta (solo gestores y creador pueden cambiarlos)
+CREATE TABLE carpeta_permisos (
+    carpeta_id UUID REFERENCES carpetas(id) ON DELETE CASCADE,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    puede_leer     BOOLEAN DEFAULT true,
+    puede_subir    BOOLEAN DEFAULT false,
+    puede_borrar   BOOLEAN DEFAULT false,
+    PRIMARY KEY (carpeta_id, usuario_id)
+);
+
+-- Carpeta opcional en archivos
+ALTER TABLE archivos ADD COLUMN carpeta_id UUID REFERENCES carpetas(id) ON DELETE SET NULL;

@@ -52,15 +52,21 @@ router.get('/notificaciones', verificarToken, async (req, res) => {
   }
 });
 
-// Listar archivos del usuario
+// Listar archivos del usuario (soporte de carpeta_id)
+// GET /archivos/lista?carpeta_id=xxx  (null = raíz)
 router.get('/lista', verificarToken, async (req, res) => {
+  const { carpeta_id } = req.query;
+
   try {
     const result = await pool.query(
-      `SELECT id, nombre, tipo, tamanio_bytes, creado_en
+      `SELECT id, nombre, tipo, tamanio_bytes, creado_en, carpeta_id
        FROM archivos
-       WHERE propietario_id = $1 AND eliminado = false
+       WHERE propietario_id = $1
+         AND eliminado = false
+         AND boveda_id IS NULL
+         AND carpeta_id IS NOT DISTINCT FROM $2
        ORDER BY creado_en DESC`,
-      [req.user.id]
+      [req.user.id, carpeta_id || null]
     );
     res.json(result.rows);
   } catch (err) {
@@ -68,17 +74,28 @@ router.get('/lista', verificarToken, async (req, res) => {
   }
 });
 
-// Subir archivo
+// Subir archivo al almacén personal (con soporte de carpeta_id)
 router.post('/subir', verificarToken, upload.single('archivo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se ha enviado ningún archivo' });
   }
 
   const { originalname, mimetype, buffer, size } = req.file;
+  const carpeta_id = req.body.carpeta_id || null;
   const nombreObjeto = `${req.user.id}/${Date.now()}-${originalname}`;
 
   try {
-    // Subir a MinIO
+    // Si se especifica carpeta, verificar que pertenece al usuario
+    if (carpeta_id) {
+      const carpeta = await pool.query(
+        `SELECT id FROM carpetas WHERE id = $1 AND creador_id = $2 AND boveda_id IS NULL`,
+        [carpeta_id, req.user.id]
+      );
+      if (carpeta.rows.length === 0) {
+        return res.status(404).json({ error: 'Carpeta no encontrada' });
+      }
+    }
+
     const cuota = await pool.query(
       `SELECT cuota_maxima_bytes, espacio_usado_bytes, almacen_id FROM usuario_almacen WHERE usuario_id = $1`,
       [req.user.id]
@@ -86,27 +103,27 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
     if (cuota.rows.length === 0) {
       return res.status(403).json({ error: 'No tienes ningún almacén asignado' });
     }
+
     const { almacen_id } = cuota.rows[0];
-    // ✅ FIX: PostgreSQL devuelve BIGINT como string, hay que convertir a número
     const cuota_maxima_bytes = parseInt(cuota.rows[0].cuota_maxima_bytes);
     const espacio_usado_bytes = parseInt(cuota.rows[0].espacio_usado_bytes);
+
     if ((espacio_usado_bytes + size) > cuota_maxima_bytes) {
       return res.status(400).json({ error: 'No tienes espacio suficiente' });
     }
+
     await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, {
       'Content-Type': mimetype
     });
 
-    // Guardar en PostgreSQL
     const result = await pool.query(
-      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, almacen_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
-      [originalname, nombreObjeto, mimetype, size, req.user.id, almacen_id]
+      `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, almacen_id, carpeta_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nombre, tipo, tamanio_bytes, creado_en, carpeta_id`,
+      [originalname, nombreObjeto, mimetype, size, req.user.id, almacen_id, carpeta_id]
     );
-    await logUser(req.user.id, 'SUBIR_ARCHIVO', `Archivo: ${originalname}`, req.ip);
- 
 
-    // Actualizar espacio usado
+    await logUser(req.user.id, 'SUBIR_ARCHIVO', `Archivo: ${originalname}`, req.ip);
+
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes + $1
        WHERE usuario_id = $2 AND almacen_id = $3`,
@@ -152,12 +169,10 @@ router.delete('/eliminar/:id', verificarToken, async (req, res) => {
     );
     await logUser(req.user.id, 'ELIMINAR_ARCHIVO', `Archivo ID: ${req.params.id}`, req.ip);
 
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Archivo no encontrado' });
     }
 
-    // Actualizar espacio usado
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes - $1
        WHERE usuario_id = $2`,

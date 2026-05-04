@@ -16,14 +16,14 @@ const adminRoutes = require('./routes/admin');
 const archivosRoutes = require('./routes/archivos');
 const logsRoutes = require('./routes/logs');
 const bovedaRoutes = require('./routes/bovedas');
-
+const carpetasRoutes = require('./routes/carpetas');
 
 app.use('/bovedas', bovedaRoutes);
 app.use('/logs', logsRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/archivos', archivosRoutes);
-
+app.use('/carpetas', carpetasRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'OpenDrive backend funcionando' });
