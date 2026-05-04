@@ -1,0 +1,6 @@
+oc start-build backend --follow
+oc rollout restart deployment/backend 
+
+oc start-build frontend --follow 
+oc rollout restart deployment/frontend
+

@@ -59,7 +59,9 @@ router.post('/crear', verificarToken, async (req, res) => {
       return res.status(403).json({ error: 'No tienes almacén personal asignado' });
     }
 
-    const { almacen_id, cuota_maxima_bytes, espacio_usado_bytes } = cuota.rows[0];
+    const { almacen_id } = cuota.rows[0];
+    const cuota_maxima_bytes = parseInt(cuota.rows[0].cuota_maxima_bytes);
+    const espacio_usado_bytes = parseInt(cuota.rows[0].espacio_usado_bytes);
     const libre = cuota_maxima_bytes - espacio_usado_bytes;
 
     if (espacio_bytes > libre) {
@@ -370,7 +372,8 @@ router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), asy
       `SELECT espacio_total_bytes, espacio_usado_bytes FROM bovedas WHERE id = $1`,
       [req.params.id]
     );
-    const { espacio_total_bytes, espacio_usado_bytes } = boveda.rows[0];
+    const espacio_total_bytes = parseInt(boveda.rows[0].espacio_total_bytes);
+    const espacio_usado_bytes = parseInt(boveda.rows[0].espacio_usado_bytes);
     if (espacio_usado_bytes + size > espacio_total_bytes) {
       return res.status(400).json({
         error: `La bóveda no tiene espacio suficiente. Disponible: ${((espacio_total_bytes - espacio_usado_bytes) / 1048576).toFixed(2)} MB`
