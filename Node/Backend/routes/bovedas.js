@@ -347,7 +347,7 @@ router.get('/:id/archivos', verificarToken, async (req, res) => {
       `SELECT a.id, a.nombre, a.tipo, a.tamanio_bytes, a.creado_en, u.username as subido_por
        FROM archivos a
        JOIN usuarios u ON a.propietario_id = u.id
-       WHERE a.boveda_id = $1 AND a.eliminado = false
+       WHERE a.boveda_id = $1 AND a.eliminado = false AND a.carpeta_id IS NOT DISTINCT FROM $2
        ORDER BY a.creado_en DESC`,
       [req.params.id]
     );

@@ -7,7 +7,12 @@
       <nav class="sidebar-nav">
         <button @click="$router.push('/dashboard')">← Volver</button>
         <button :class="{ active: tab === 'archivos' }" @click="tab = 'archivos'">📂 Archivos</button>
-        <button v-if="acceso && (acceso.esCreador || acceso.puede_gestionar)" :class="{ active: tab === 'miembros' }" @click="tab = 'miembros'">👥 Miembros</button>
+        <button
+          v-if="acceso && (acceso.esCreador || acceso.puede_gestionar)"
+          :class="{ active: tab === 'miembros' }"
+          @click="tab = 'miembros'">
+          👥 Miembros
+        </button>
       </nav>
 
       <!-- Info de la bóveda -->
@@ -33,17 +38,25 @@
         <!-- ── ARCHIVOS ── -->
         <div v-if="tab === 'archivos'">
           <div class="main-header">
-            <!-- Breadcrumb de carpetas -->
-            <div class="breadcrumb">
-              <span class="breadcrumb-item" @click="irARaiz()">📂 {{ boveda.nombre }}</span>
-              <template v-for="(c, i) in rutaCarpetas" :key="c.id">
-                <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item" @click="irACarpeta(c, i)">{{ c.nombre }}</span>
-              </template>
+            <div class="header-left">
+              <h2>📂 {{ boveda.nombre }}</h2>
+              <!-- Breadcrumb -->
+              <div v-if="breadcrumb.length > 0" class="breadcrumb">
+                <span class="breadcrumb-item" @click="irARaiz()">📂 Raíz</span>
+                <template v-for="(crumb, i) in breadcrumb" :key="crumb.id">
+                  <span class="breadcrumb-sep">›</span>
+                  <span
+                    class="breadcrumb-item"
+                    :class="{ 'breadcrumb-actual': i === breadcrumb.length - 1 }"
+                    @click="i < breadcrumb.length - 1 && irACarpeta(crumb.id, crumb.nombre, i)">
+                    {{ crumb.nombre }}
+                  </span>
+                </template>
+              </div>
             </div>
             <div class="header-acciones">
-              <button v-if="acceso.puede_subir" class="btn-nueva-carpeta" @click="mostrarModalCarpeta = true">
-                📁 Nueva carpeta
+              <button v-if="acceso.puede_subir" class="btn-accion" @click="mostrarModalCarpeta = true">
+                📂 Nueva carpeta
               </button>
               <button v-if="acceso.puede_subir" class="btn-subir" @click="$refs.inputArchivo.click()">
                 ⬆️ Subir archivo
@@ -52,40 +65,41 @@
             </div>
           </div>
 
+          <!-- Botón volver un nivel -->
+          <div v-if="carpetaActualId" class="btn-volver-wrap">
+            <button class="btn-volver" @click="subirNivel()">← Volver</button>
+          </div>
+
           <p v-if="errorArchivo" class="notificacion error">{{ errorArchivo }}</p>
 
-          <!-- Modal nueva carpeta -->
-          <div v-if="mostrarModalCarpeta" class="modal-overlay" @click.self="mostrarModalCarpeta = false">
-            <div class="modal-carpeta">
-              <h3>📁 Nueva carpeta</h3>
-              <input v-model="nombreNuevaCarpeta" type="text" placeholder="Nombre de la carpeta" @keyup.enter="crearCarpeta" />
-              <div class="modal-acciones">
-                <button class="btn-cancelar" @click="mostrarModalCarpeta = false">Cancelar</button>
-                <button class="btn-crear" @click="crearCarpeta">Crear</button>
+          <!-- Listado: carpetas + archivos -->
+          <div class="lista-archivos">
+            <!-- Carpetas -->
+            <div
+              class="archivo-fila carpeta-fila"
+              v-for="carpeta in carpetas"
+              :key="'c-' + carpeta.id"
+              @click="entrarCarpeta(carpeta)">
+              <span>📂 {{ carpeta.nombre }}</span>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <span class="archivo-fecha">Carpeta</span>
+                <!-- Botón permisos: solo creador/gestor -->
+                <button
+                  v-if="acceso.esCreador || acceso.puede_gestionar"
+                  class="btn-mini"
+                  @click.stop="abrirPermisosCarteta(carpeta)"
+                  title="Gestionar permisos">
+                  🔑
+                </button>
+                <button
+                  v-if="acceso.puede_borrar || acceso.esCreador || acceso.puede_gestionar"
+                  class="btn-mini btn-mini-danger"
+                  @click.stop="eliminarCarpeta(carpeta.id, carpeta.nombre)">
+                  🗑️
+                </button>
               </div>
             </div>
-          </div>
-
-          <!-- Carpetas -->
-          <div v-if="carpetas.length > 0" class="grid-carpetas">
-            <div class="carpeta-card" v-for="c in carpetas" :key="c.id">
-              <div class="carpeta-body" @click="entrarEnCarpeta(c)">
-                <span class="carpeta-icono">📁</span>
-                <span class="carpeta-nombre">{{ c.nombre }}</span>
-                <span class="carpeta-meta" v-if="c.num_subcarpetas > 0">{{ c.num_subcarpetas }} subcarpeta{{ c.num_subcarpetas != 1 ? 's' : '' }}</span>
-              </div>
-              <div class="carpeta-acciones" v-if="acceso.esCreador || acceso.puede_gestionar">
-                <button class="btn-mini" @click.stop="renombrarCarpeta(c)" title="Renombrar">✏️</button>
-                <button class="btn-mini btn-mini-danger" @click.stop="eliminarCarpeta(c.id)" title="Eliminar">🗑️</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Archivos -->
-          <div v-if="carpetas.length === 0 && archivos.length === 0" class="vacio">
-            {{ carpetaActual ? 'Esta carpeta está vacía.' : 'No hay archivos en esta bóveda todavía.' }}
-          </div>
-          <div v-if="archivos.length > 0" class="lista-archivos">
+            <!-- Archivos -->
             <div class="archivo-fila" v-for="a in archivos" :key="a.id">
               <span>{{ iconoArchivo(a.tipo) }} {{ a.nombre }}</span>
               <div style="display:flex;gap:0.5rem;align-items:center;">
@@ -93,6 +107,9 @@
                 <button class="btn-mini" @click="descargar(a.id, a.nombre)">⬇️</button>
                 <button v-if="acceso.puede_borrar" class="btn-mini btn-mini-danger" @click="eliminar(a.id)">🗑️</button>
               </div>
+            </div>
+            <div v-if="carpetas.length === 0 && archivos.length === 0" class="vacio">
+              {{ carpetaActualId ? 'Esta carpeta está vacía.' : 'No hay archivos en esta bóveda todavía.' }}
             </div>
           </div>
         </div>
@@ -103,7 +120,6 @@
             <h2>👥 Miembros</h2>
           </div>
 
-          <!-- Invitar -->
           <div class="invitar-box">
             <input v-model="invitar.identificador" type="text" placeholder="Usuario o email a invitar" />
             <div class="permisos-check">
@@ -118,7 +134,6 @@
             </button>
           </div>
 
-          <!-- Lista de miembros -->
           <div v-if="miembros.length === 0" class="vacio">No hay miembros todavía.</div>
           <div v-else class="lista-miembros">
             <div class="miembro-fila" v-for="m in miembros" :key="m.usuario_id">
@@ -141,7 +156,6 @@
             </div>
           </div>
 
-          <!-- Eliminar bóveda (solo creador) -->
           <div v-if="acceso.esCreador" class="zona-peligro">
             <h3>⚠️ Zona de peligro</h3>
             <p>Eliminar la bóveda devolverá el espacio a tu cuota personal pero borrará todos sus archivos.</p>
@@ -151,6 +165,70 @@
 
       </template>
     </main>
+
+    <!-- ── MODAL NUEVA CARPETA ── -->
+    <div v-if="mostrarModalCarpeta" class="modal-overlay" @click.self="cerrarModalCarpeta()">
+      <div class="modal">
+        <h3>📂 Nueva carpeta</h3>
+        <input
+          v-model="nombreNuevaCarpeta"
+          type="text"
+          placeholder="Nombre de la carpeta *"
+          @keyup.enter="crearCarpeta" />
+        <p v-if="errorCarpeta" class="error-modal">{{ errorCarpeta }}</p>
+        <div class="modal-acciones">
+          <button class="btn-cancelar" @click="cerrarModalCarpeta()">Cancelar</button>
+          <button class="btn-crear" @click="crearCarpeta" :disabled="creandoCarpeta">
+            {{ creandoCarpeta ? 'Creando...' : 'Crear' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL PERMISOS DE CARPETA ── -->
+    <div v-if="mostrarModalPermisos" class="modal-overlay" @click.self="cerrarModalPermisos()">
+      <div class="modal modal-permisos">
+        <h3>🔑 Permisos: {{ carpetaPermisos?.nombre }}</h3>
+        <p class="modal-sub">Permisos específicos por usuario para esta carpeta. Sobreescriben los permisos generales de la bóveda.</p>
+
+        <!-- Asignar nuevo permiso -->
+        <div class="permiso-form">
+          <input v-model="nuevoPermiso.identificador" type="text" placeholder="Usuario o email" />
+          <div class="permisos-check">
+            <label><input type="checkbox" v-model="nuevoPermiso.puede_leer" /> 👁️ Leer</label>
+            <label><input type="checkbox" v-model="nuevoPermiso.puede_subir" /> ⬆️ Subir</label>
+            <label><input type="checkbox" v-model="nuevoPermiso.puede_borrar" /> 🗑️ Borrar</label>
+          </div>
+          <p v-if="errorPermisoModal" class="error-inline">{{ errorPermisoModal }}</p>
+          <button class="btn-invitar" @click="asignarPermisoCarpeta" :disabled="asignandoPermiso">
+            {{ asignandoPermiso ? 'Guardando...' : '💾 Guardar permiso' }}
+          </button>
+        </div>
+
+        <!-- Lista de permisos actuales -->
+        <div v-if="listaPermisosCarpeta.length > 0" class="lista-permisos-carpeta">
+          <p class="permiso-sub-label">Permisos personalizados activos:</p>
+          <div class="permiso-fila" v-for="p in listaPermisosCarpeta" :key="p.usuario_id">
+            <div>
+              <span class="miembro-nombre">{{ p.username }}</span>
+              <span class="miembro-email"> · {{ p.email }}</span>
+            </div>
+            <div class="permiso-badges">
+              <span v-if="p.puede_leer" class="badge-p">👁️</span>
+              <span v-if="p.puede_subir" class="badge-p">⬆️</span>
+              <span v-if="p.puede_borrar" class="badge-p">🗑️</span>
+            </div>
+            <button class="btn-revocar" @click="revocarPermisoCarpeta(p.usuario_id)">Revocar</button>
+          </div>
+        </div>
+        <p v-else class="vacio" style="padding:1rem 0">Sin permisos personalizados aún.</p>
+
+        <div class="modal-acciones">
+          <button class="btn-cancelar" @click="cerrarModalPermisos()">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -166,15 +244,25 @@ export default {
       acceso: null,
       archivos: [],
       carpetas: [],
-      carpetaActual: null,
-      rutaCarpetas: [],
-      mostrarModalCarpeta: false,
-      nombreNuevaCarpeta: '',
+      carpetaActualId: null,
+      breadcrumb: [],
       miembros: [],
       errorArchivo: '',
       errorInvitar: '',
       invitando: false,
-      invitar: { identificador: '', puede_leer: true, puede_subir: false, puede_borrar: false, puede_gestionar: false }
+      invitar: { identificador: '', puede_leer: true, puede_subir: false, puede_borrar: false, puede_gestionar: false },
+      // Modal carpeta
+      mostrarModalCarpeta: false,
+      creandoCarpeta: false,
+      nombreNuevaCarpeta: '',
+      errorCarpeta: '',
+      // Modal permisos de carpeta
+      mostrarModalPermisos: false,
+      carpetaPermisos: null,
+      listaPermisosCarpeta: [],
+      nuevoPermiso: { identificador: '', puede_leer: true, puede_subir: false, puede_borrar: false },
+      asignandoPermiso: false,
+      errorPermisoModal: ''
     }
   },
   computed: {
@@ -187,8 +275,8 @@ export default {
       if (this.porcentaje >= 70) return '#f59e0b';
       return '#3b82f6';
     },
-    usadoMB() { return this.boveda ? (this.boveda.espacio_usado_bytes / 1048576).toFixed(1) : 0 },
-    totalMB() { return this.boveda ? (this.boveda.espacio_total_bytes / 1048576).toFixed(1) : 0 },
+    usadoMB() { return this.boveda ? (this.boveda.espacio_usado_bytes / 1048576).toFixed(1) : 0; },
+    totalMB() { return this.boveda ? (this.boveda.espacio_total_bytes / 1048576).toFixed(1) : 0; },
     permisoLabel() {
       if (!this.acceso) return '';
       const p = [];
@@ -210,6 +298,34 @@ export default {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       };
     },
+    get bovedaId() { return this.$route.params.id; },
+
+    // ── Navegación carpetas ──
+    irARaiz() {
+      this.carpetaActualId = null;
+      this.breadcrumb = [];
+      this.cargarContenido();
+    },
+    entrarCarpeta(carpeta) {
+      this.breadcrumb.push({ id: carpeta.id, nombre: carpeta.nombre });
+      this.carpetaActualId = carpeta.id;
+      this.cargarContenido();
+    },
+    irACarpeta(id, nombre, index) {
+      this.breadcrumb = this.breadcrumb.slice(0, index + 1);
+      this.carpetaActualId = id;
+      this.cargarContenido();
+    },
+    subirNivel() {
+      if (this.breadcrumb.length === 0) return;
+      this.breadcrumb.pop();
+      this.carpetaActualId = this.breadcrumb.length > 0
+        ? this.breadcrumb[this.breadcrumb.length - 1].id
+        : null;
+      this.cargarContenido();
+    },
+
+    // ── Carga de datos ──
     async cargarBoveda() {
       try {
         const res = await fetch(`${API}/bovedas/${this.$route.params.id}`, { headers: this.headers() });
@@ -221,79 +337,20 @@ export default {
       finally { this.cargando = false; }
     },
     async cargarContenido() {
-      const bid = this.$route.params.id;
-      const cid = this.carpetaActual?.id || null;
-
-      // Cargar carpetas del nivel actual
-      const urlCarpetas = cid
-        ? `${API}/bovedas/${bid}/carpetas?parent_id=${cid}`
-        : `${API}/bovedas/${bid}/carpetas`;
+      await Promise.all([this.cargarCarpetas(), this.cargarArchivos()]);
+    },
+    async cargarCarpetas() {
       try {
-        const res = await fetch(urlCarpetas, { headers: this.headers() });
+        const params = this.carpetaActualId ? `?parent_id=${this.carpetaActualId}` : '';
+        const res = await fetch(`${API}/carpetas/boveda/${this.$route.params.id}${params}`, { headers: this.headers() });
         if (res.ok) this.carpetas = await res.json();
       } catch (err) { console.error(err); }
-
-      // Cargar archivos del nivel actual
-      const urlArchivos = cid
-        ? `${API}/bovedas/${bid}/carpetas/${cid}/archivos`
-        : `${API}/bovedas/${bid}/archivos`;
+    },
+    async cargarArchivos() {
       try {
-        const res = await fetch(urlArchivos, { headers: this.headers() });
+        const params = this.carpetaActualId ? `?carpeta_id=${this.carpetaActualId}` : '';
+        const res = await fetch(`${API}/bovedas/${this.$route.params.id}/archivos${params}`, { headers: this.headers() });
         if (res.ok) this.archivos = await res.json();
-      } catch (err) { console.error(err); }
-    },
-    async entrarEnCarpeta(carpeta) {
-      this.rutaCarpetas.push(carpeta);
-      this.carpetaActual = carpeta;
-      await this.cargarContenido();
-    },
-    async irARaiz() {
-      this.rutaCarpetas = [];
-      this.carpetaActual = null;
-      await this.cargarContenido();
-    },
-    async irACarpeta(carpeta, index) {
-      this.rutaCarpetas = this.rutaCarpetas.slice(0, index + 1);
-      this.carpetaActual = carpeta;
-      await this.cargarContenido();
-    },
-    async crearCarpeta() {
-      if (!this.nombreNuevaCarpeta.trim()) return;
-      try {
-        const res = await fetch(`${API}/bovedas/${this.$route.params.id}/carpetas`, {
-          method: 'POST',
-          headers: this.headers(),
-          body: JSON.stringify({
-            nombre: this.nombreNuevaCarpeta.trim(),
-            parent_id: this.carpetaActual?.id || null
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        this.mostrarModalCarpeta = false;
-        this.nombreNuevaCarpeta = '';
-        await this.cargarContenido();
-      } catch (err) { this.errorArchivo = err.message; }
-    },
-    async renombrarCarpeta(carpeta) {
-      const nuevoNombre = prompt('Nuevo nombre:', carpeta.nombre);
-      if (!nuevoNombre || nuevoNombre === carpeta.nombre) return;
-      try {
-        const res = await fetch(`${API}/bovedas/${this.$route.params.id}/carpetas/${carpeta.id}`, {
-          method: 'PATCH',
-          headers: this.headers(),
-          body: JSON.stringify({ nombre: nuevoNombre })
-        });
-        if (res.ok) await this.cargarContenido();
-      } catch (err) { console.error(err); }
-    },
-    async eliminarCarpeta(id) {
-      if (!confirm('¿Eliminar esta carpeta y todos sus archivos?')) return;
-      try {
-        await fetch(`${API}/bovedas/${this.$route.params.id}/carpetas/${id}`, {
-          method: 'DELETE', headers: this.headers()
-        });
-        await this.cargarContenido();
       } catch (err) { console.error(err); }
     },
     async cargarMiembros() {
@@ -302,29 +359,110 @@ export default {
         if (res.ok) this.miembros = await res.json();
       } catch (err) { console.error(err); }
     },
+
+    // ── Carpetas ──
+    cerrarModalCarpeta() {
+      this.mostrarModalCarpeta = false;
+      this.nombreNuevaCarpeta = '';
+      this.errorCarpeta = '';
+    },
+    async crearCarpeta() {
+      this.errorCarpeta = '';
+      if (!this.nombreNuevaCarpeta.trim()) { this.errorCarpeta = 'El nombre es obligatorio'; return; }
+      this.creandoCarpeta = true;
+      try {
+        const body = { nombre: this.nombreNuevaCarpeta.trim() };
+        if (this.carpetaActualId) body.parent_id = this.carpetaActualId;
+        const res = await fetch(`${API}/carpetas/boveda/${this.$route.params.id}`, {
+          method: 'POST',
+          headers: this.headers(),
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        this.cerrarModalCarpeta();
+        await this.cargarCarpetas();
+      } catch (err) {
+        this.errorCarpeta = err.message;
+      } finally {
+        this.creandoCarpeta = false;
+      }
+    },
+    async eliminarCarpeta(id, nombre) {
+      if (!confirm(`¿Eliminar la carpeta "${nombre}" y todo su contenido?`)) return;
+      try {
+        await fetch(`${API}/carpetas/boveda/${this.$route.params.id}/${id}`, { method: 'DELETE', headers: this.headers() });
+        await this.cargarContenido();
+      } catch (err) { console.error(err); }
+    },
+
+    // ── Permisos de carpeta ──
+    async abrirPermisosCarteta(carpeta) {
+      this.carpetaPermisos = carpeta;
+      this.nuevoPermiso = { identificador: '', puede_leer: true, puede_subir: false, puede_borrar: false };
+      this.errorPermisoModal = '';
+      this.mostrarModalPermisos = true;
+      await this.cargarPermisosCarpeta(carpeta.id);
+    },
+    cerrarModalPermisos() {
+      this.mostrarModalPermisos = false;
+      this.carpetaPermisos = null;
+      this.listaPermisosCarpeta = [];
+      this.errorPermisoModal = '';
+    },
+    async cargarPermisosCarpeta(carpetaId) {
+      try {
+        const res = await fetch(`${API}/carpetas/${carpetaId}/permisos`, { headers: this.headers() });
+        if (res.ok) this.listaPermisosCarpeta = await res.json();
+      } catch (err) { console.error(err); }
+    },
+    async asignarPermisoCarpeta() {
+      this.errorPermisoModal = '';
+      if (!this.nuevoPermiso.identificador) { this.errorPermisoModal = 'Indica el usuario o email'; return; }
+      this.asignandoPermiso = true;
+      try {
+        const res = await fetch(`${API}/carpetas/${this.carpetaPermisos.id}/permisos`, {
+          method: 'POST',
+          headers: this.headers(),
+          body: JSON.stringify(this.nuevoPermiso)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        this.nuevoPermiso = { identificador: '', puede_leer: true, puede_subir: false, puede_borrar: false };
+        await this.cargarPermisosCarpeta(this.carpetaPermisos.id);
+      } catch (err) {
+        this.errorPermisoModal = err.message;
+      } finally {
+        this.asignandoPermiso = false;
+      }
+    },
+    async revocarPermisoCarpeta(uid) {
+      if (!confirm('¿Revocar permisos personalizados de este usuario?')) return;
+      try {
+        await fetch(`${API}/carpetas/${this.carpetaPermisos.id}/permisos/${uid}`, { method: 'DELETE', headers: this.headers() });
+        await this.cargarPermisosCarpeta(this.carpetaPermisos.id);
+      } catch (err) { console.error(err); }
+    },
+
+    // ── Archivos ──
     async subirArchivo(event) {
       this.errorArchivo = '';
       const archivo = event.target.files[0];
       if (!archivo) return;
       const formData = new FormData();
       formData.append('archivo', archivo);
-      const bid = this.$route.params.id;
-      const cid = this.carpetaActual?.id;
-      const url = cid
-        ? `${API}/bovedas/${bid}/carpetas/${cid}/archivos/subir`
-        : `${API}/bovedas/${bid}/archivos/subir`;
+      if (this.carpetaActualId) formData.append('carpeta_id', this.carpetaActualId);
       try {
-        const res = await fetch(url, {
+        const res = await fetch(`${API}/bovedas/${this.$route.params.id}/archivos/subir`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
           body: formData
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        await this.cargarContenido();
+        await this.cargarArchivos();
         await this.cargarBoveda();
       } catch (err) { this.errorArchivo = err.message; }
-      finally { event.target.value = ''; }
     },
     async descargar(id, nombre) {
       const res = await fetch(`${API}/bovedas/${this.$route.params.id}/archivos/${id}/descargar`, { headers: this.headers() });
@@ -337,9 +475,11 @@ export default {
     async eliminar(id) {
       if (!confirm('¿Eliminar este archivo de la bóveda?')) return;
       await fetch(`${API}/bovedas/${this.$route.params.id}/archivos/${id}`, { method: 'DELETE', headers: this.headers() });
-      await this.cargarContenido();
+      await this.cargarArchivos();
       await this.cargarBoveda();
     },
+
+    // ── Miembros ──
     async invitarMiembro() {
       this.errorInvitar = '';
       if (!this.invitar.identificador) { this.errorInvitar = 'Introduce un usuario o email'; return; }
@@ -381,6 +521,7 @@ export default {
         if (res.ok) this.$router.push('/dashboard');
       } catch (err) { console.error(err); }
     },
+
     iconoArchivo(tipo) {
       if (!tipo) return '📁';
       if (tipo.includes('pdf')) return '📄';
@@ -395,6 +536,7 @@ export default {
   watch: {
     tab(val) {
       if (val === 'miembros') this.cargarMiembros();
+      if (val === 'archivos') this.cargarContenido();
     }
   }
 }
@@ -424,74 +566,37 @@ export default {
 .espacio-texto { font-size: 0.78rem; color: #64748b; }
 
 .main-content { flex: 1; padding: 2rem; overflow-y: auto; }
-.main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
-.header-acciones { display: flex; gap: 0.75rem; }
-.btn-subir { background: #3b82f6; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: none; color: white; cursor: pointer; }
-.btn-nueva-carpeta { background: #334155; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: none; color: #e2e8f0; cursor: pointer; }
-.btn-nueva-carpeta:hover { background: #475569; }
+
+.main-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 1.5rem; gap: 1rem;
+}
+.header-left { display: flex; flex-direction: column; gap: 0.4rem; }
+.main-header h2 { color: #e2e8f0; font-size: 1.5rem; }
+.header-acciones { display: flex; gap: 0.75rem; flex-shrink: 0; align-items: center; }
 
 /* Breadcrumb */
-.breadcrumb { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.breadcrumb { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .breadcrumb-item {
-  color: #60a5fa; cursor: pointer; font-size: 1rem; font-weight: 600;
+  font-size: 0.82rem; color: #60a5fa; cursor: pointer;
+  padding: 0.15rem 0.35rem; border-radius: 4px; transition: background 0.15s;
 }
-.breadcrumb-item:hover { text-decoration: underline; }
-.breadcrumb-sep { color: #475569; font-size: 1rem; }
+.breadcrumb-item:hover { background: #1e293b; }
+.breadcrumb-actual { color: #94a3b8; cursor: default; }
+.breadcrumb-actual:hover { background: transparent; }
+.breadcrumb-sep { color: #475569; font-size: 0.9rem; }
 
-/* Carpetas */
-.grid-carpetas {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+/* Botón volver */
+.btn-volver-wrap { margin-bottom: 1rem; }
+.btn-volver {
+  background: #334155; color: #94a3b8; border: none; border-radius: 8px;
+  padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer;
 }
-.carpeta-card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 10px;
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-.carpeta-card:hover { border-color: #3b82f6; }
-.carpeta-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1rem 0.75rem 0.5rem;
-  cursor: pointer;
-  gap: 0.3rem;
-}
-.carpeta-icono { font-size: 2rem; }
-.carpeta-nombre { font-size: 0.85rem; color: #e2e8f0; text-align: center; word-break: break-word; }
-.carpeta-meta { font-size: 0.72rem; color: #64748b; }
-.carpeta-acciones {
-  display: flex;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.4rem;
-  border-top: 1px solid #1e293b;
-  background: #0f172a;
-}
+.btn-volver:hover { background: #3b82f620; color: #60a5fa; }
 
-/* Modal carpeta */
-.modal-carpeta {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.modal-carpeta h3 { color: #60a5fa; }
-.modal-carpeta input {
-  padding: 0.65rem 0.75rem; background: #0f172a; border: 1px solid #334155;
-  border-radius: 8px; color: #e2e8f0; font-size: 0.9rem;
-}
-.modal-acciones { display: flex; gap: 0.75rem; justify-content: flex-end; }
-.btn-cancelar { background: #334155; color: #e2e8f0; border: none; border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; }
-.btn-crear { background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; }
+.btn-accion { background: #334155; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: none; color: #e2e8f0; cursor: pointer; }
+.btn-accion:hover { background: #475569; }
+.btn-subir { background: #3b82f6; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: none; color: white; cursor: pointer; }
 
 .notificacion { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
 .notificacion.error { background: #7f1d1d; color: #fca5a5; }
@@ -502,12 +607,16 @@ export default {
   padding: 0.75rem 1rem; background: #1e293b; border-radius: 8px;
   border: 1px solid #334155;
 }
-.archivo-fila:hover { background: #273548; }
+.archivo-fila:hover { background: #1e293b33; }
+.carpeta-fila { cursor: pointer; border-color: #4a5568; }
+.carpeta-fila:hover { border-color: #60a5fa; background: #1e3a5f22; }
+
 .archivo-fecha { font-size: 0.75rem; color: #64748b; }
+
 .btn-mini { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 6px; background: #334155; border: none; cursor: pointer; color: white; }
 .btn-mini-danger { background: #7f1d1d; }
 
-/* Invitar */
+/* Invitar miembros */
 .invitar-box {
   background: #1e293b; border: 1px solid #334155; border-radius: 10px;
   padding: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;
@@ -545,4 +654,38 @@ export default {
 .btn-eliminar-boveda { background: #dc2626; color: white; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; cursor: pointer; }
 
 .vacio { text-align: center; color: #475569; padding: 4rem 2rem; font-size: 1rem; line-height: 2; }
+
+/* Modales */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+  padding: 2rem; width: 400px; display: flex; flex-direction: column; gap: 0.85rem;
+  max-height: 85vh; overflow-y: auto;
+}
+.modal-permisos { width: 480px; }
+.modal h3 { color: #60a5fa; margin-bottom: 0.25rem; }
+.modal-sub { font-size: 0.8rem; color: #64748b; margin-top: -0.5rem; }
+.modal input[type="text"] {
+  padding: 0.75rem; border-radius: 8px; border: 1px solid #334155;
+  background: #0f172a; color: #e2e8f0; font-size: 0.9rem;
+}
+.error-modal { color: #f87171; font-size: 0.85rem; }
+.modal-acciones { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem; }
+.btn-cancelar { background: #334155; border: none; border-radius: 8px; padding: 0.6rem 1rem; color: #e2e8f0; cursor: pointer; }
+.btn-crear { background: #3b82f6; border: none; border-radius: 8px; padding: 0.6rem 1rem; color: white; cursor: pointer; }
+.btn-crear:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Permisos carpeta */
+.permiso-form { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.lista-permisos-carpeta { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.permiso-sub-label { font-size: 0.78rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+.permiso-fila {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.6rem 0.85rem;
+}
+.permiso-badges { display: flex; gap: 0.25rem; }
+.badge-p { font-size: 0.85rem; }
 </style>
