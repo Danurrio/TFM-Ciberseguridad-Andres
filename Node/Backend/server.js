@@ -18,7 +18,7 @@ const logsRoutes = require('./routes/logs');
 const bovedaRoutes = require('./routes/bovedas');
 
 
-app.use('/boveda', bovedaRoutes);
+app.use('/bovedas', bovedaRoutes);
 app.use('/logs', logsRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
