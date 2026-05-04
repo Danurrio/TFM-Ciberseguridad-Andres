@@ -62,6 +62,12 @@
         {{ n.mensaje }}
       </div>
 
+      <!-- Error de subida -->
+      <div v-if="errorSubida" class="notificacion error" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>⚠️ {{ errorSubida }}</span>
+        <span style="cursor:pointer;font-size:1.1rem;padding-left:1rem;" @click="errorSubida = ''">✕</span>
+      </div>
+
       <!-- Archivos recientes -->
       <div v-if="seccion === 'mis-archivos'">
         <p class="seccion-label">Archivos recientes</p>
@@ -180,6 +186,7 @@ export default {
       mostrarModalBoveda: false,
       creandoBoveda: false,
       errorBoveda: '',
+      errorSubida: '',
       nuevaBoveda: { nombre: '', descripcion: '', espacioMB: '' }
     }
   },
@@ -308,6 +315,7 @@ export default {
       return '📁';
     },
     async subirArchivo(event) {
+      this.errorSubida = '';
       const archivo = event.target.files[0];
       if (!archivo) return;
       const formData = new FormData();
@@ -322,7 +330,12 @@ export default {
         if (!res.ok) throw new Error(data.error);
         await this.cargarArchivos();
         await this.cargarEspacio();
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        this.errorSubida = err.message;
+      } finally {
+        // Resetear el input para poder subir el mismo archivo de nuevo
+        event.target.value = '';
+      }
     },
     async descargarArchivo(id, nombre) {
       const res = await fetch(`${API}/archivos/descargar/${id}`, { headers: this.headers() });
