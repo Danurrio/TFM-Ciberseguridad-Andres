@@ -3,10 +3,10 @@
     <h2>📋 Logs de Auditoría</h2>
 
     <div class="tabs">
-      <button :class="{ active: tab === 'admin' }" @click="tab = 'admin'; cargar()">
+      <button :class="{ active: tab === 'admin' }" @click="tab = 'admin'; cargar(true)">
         🔧 Acciones Admin
       </button>
-      <button :class="{ active: tab === 'usuarios' }" @click="tab = 'usuarios'; cargar()">
+      <button :class="{ active: tab === 'usuarios' }" @click="tab = 'usuarios'; cargar(true)">
         👤 Acciones Usuario
       </button>
     </div>
@@ -38,6 +38,13 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Paginación -->
+    <div v-if="total > limit" class="paginacion">
+      <button :disabled="page === 1" @click="page--; cargar()">← Anterior</button>
+      <span>Página {{ page }} de {{ Math.ceil(total / limit) }} · {{ total }} entradas</span>
+      <button :disabled="page >= Math.ceil(total / limit)" @click="page++; cargar()">Siguiente →</button>
+    </div>
   </div>
 </template>
 
@@ -49,7 +56,10 @@ export default {
     return {
       tab: 'admin',
       logs: [],
-      cargando: true
+      cargando: true,
+      total: 0,
+      page: 1,
+      limit: 50
     }
   },
   mounted() {
@@ -62,11 +72,14 @@ export default {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       };
     },
-    async cargar() {
+    async cargar(resetPage = false) {
+      if (resetPage) this.page = 1;
       this.cargando = true;
       try {
-        const res = await fetch(`${API}/logs/${this.tab}`, { headers: this.headers() });
-        this.logs = await res.json();
+        const res = await fetch(`${API}/logs/${this.tab}?page=${this.page}&limit=${this.limit}`, { headers: this.headers() });
+        const data = await res.json();
+        this.logs = data.logs || [];
+        this.total = data.total || 0;
       } catch (err) {
         console.error(err);
       } finally {
@@ -112,4 +125,15 @@ tr:hover { background: #1e293b33; }
 
 .vacio { text-align: center; color: #475569; padding: 2rem; }
 .cargando { color: #94a3b8; text-align: center; padding: 2rem; }
+
+.paginacion {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1rem; margin-top: 1.5rem; font-size: 0.85rem; color: #64748b;
+}
+.paginacion button {
+  background: #334155; color: #e2e8f0; border: none; border-radius: 8px;
+  padding: 0.4rem 0.9rem; cursor: pointer; font-size: 0.85rem;
+}
+.paginacion button:disabled { opacity: 0.4; cursor: not-allowed; }
+.paginacion button:not(:disabled):hover { background: #475569; }
 </style>
