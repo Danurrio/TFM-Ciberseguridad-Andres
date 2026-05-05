@@ -5,6 +5,7 @@ const pool = require('../db');
 const { minioClient, BUCKET } = require('../minio');
 const { verificarToken } = require('../middleware/auth');
 const { logUser } = require('../logger');
+const { encrypt, decrypt, streamToBuffer } = require('../crypto');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -372,12 +373,18 @@ router.post('/:id/archivos/subir', verificarToken, upload.single('archivo'), asy
     }
 
     const nombreObjeto = `bovedas/${req.params.id}/${Date.now()}-${originalname}`;
-    await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, { 'Content-Type': mimetype });
 
+    // ── Cifrar antes de subir a MinIO ──
+    const encryptedBuffer = encrypt(buffer);
+    await minioClient.putObject(BUCKET, nombreObjeto, encryptedBuffer, encryptedBuffer.length, {
+      'Content-Type': 'application/octet-stream'
+    });
+
+    // En BD guardamos el tamaño original (no cifrado) para la cuota
     const result = await pool.query(
       `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, boveda_id, carpeta_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nombre, tipo, tamanio_bytes, creado_en`,
-      [originalname, nombreObjeto, mimetype, size, req.user.id, req.params.id, carpeta_id]  // ← FIX
+      [originalname, nombreObjeto, mimetype, size, req.user.id, req.params.id, carpeta_id]
     );
 
     await pool.query(
@@ -404,11 +411,17 @@ router.get('/:id/archivos/:fid/descargar', verificarToken, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Archivo no encontrado' });
 
     const archivo = result.rows[0];
+
+    // ── Leer stream cifrado de MinIO, descifrar y enviar ──
     const stream = await minioClient.getObject(BUCKET, archivo.nombre_objeto);
+    const encryptedBuffer = await streamToBuffer(stream);
+    const decryptedBuffer = decrypt(encryptedBuffer);
+
     res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
     res.setHeader('Content-Type', archivo.tipo);
+    res.setHeader('Content-Length', decryptedBuffer.length);
     await logUser(req.user.id, 'DESCARGAR_ARCHIVO_BOVEDA', `Archivo: ${archivo.nombre}`, req.ip);
-    stream.pipe(res);
+    res.send(decryptedBuffer);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

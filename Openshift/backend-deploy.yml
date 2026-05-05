@@ -56,3 +56,9 @@ spec:
                 secretKeyRef:
                   name: minio-secret
                   key: MINIO_ROOT_PASSWORD
+            - name: FILE_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backend-encryption-secret
+                  key: FILE_ENCRYPTION_KEY
+ 
