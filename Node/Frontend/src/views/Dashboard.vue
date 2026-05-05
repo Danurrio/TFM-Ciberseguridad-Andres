@@ -200,7 +200,7 @@
       <div v-if="seccion === 'papelera'">
         <div class="papelera-header">
           <p class="papelera-info">
-            Los archivos en la papelera no ocupan espacio. Restáuralos o elimínalos permanentemente.
+            Los archivos en la papelera no ocupan espacio. Restáuralos o elimínalos permanentemente. Se borran automaticamente despues de 30 dias.
           </p>
           <button
             v-if="archivosEliminados.length > 0"
