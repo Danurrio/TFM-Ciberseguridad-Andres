@@ -298,8 +298,6 @@ export default {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       };
     },
-    get bovedaId() { return this.$route.params.id; },
-
     // ── Navegación carpetas ──
     irARaiz() {
       this.carpetaActualId = null;
