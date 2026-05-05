@@ -55,10 +55,10 @@
               </div>
             </div>
             <div class="header-acciones">
-              <button v-if="acceso.puede_subir" class="btn-accion" @click="mostrarModalCarpeta = true">
+              <button v-if="accesoEfectivo.puede_subir" class="btn-accion" @click="mostrarModalCarpeta = true">
                 📂 Nueva carpeta
               </button>
-              <button v-if="acceso.puede_subir" class="btn-subir" @click="$refs.inputArchivo.click()">
+              <button v-if="accesoEfectivo.puede_subir" class="btn-subir" @click="$refs.inputArchivo.click()">
                 ⬆️ Subir archivo
               </button>
               <input ref="inputArchivo" type="file" style="display:none" @change="subirArchivo" />
@@ -92,7 +92,7 @@
                   🔑
                 </button>
                 <button
-                  v-if="acceso.puede_borrar || acceso.esCreador || acceso.puede_gestionar"
+                  v-if="accesoEfectivo.puede_borrar || acceso.esCreador || acceso.puede_gestionar"
                   class="btn-mini btn-mini-danger"
                   @click.stop="eliminarCarpeta(carpeta.id, carpeta.nombre)">
                   🗑️
@@ -105,7 +105,7 @@
               <div style="display:flex;gap:0.5rem;align-items:center;">
                 <span class="archivo-fecha">{{ a.subido_por }} · {{ new Date(a.creado_en).toLocaleDateString() }}</span>
                 <button class="btn-mini" @click="descargar(a.id, a.nombre)">⬇️</button>
-                <button v-if="acceso.puede_borrar" class="btn-mini btn-mini-danger" @click="eliminar(a.id)">🗑️</button>
+                <button v-if="accesoEfectivo.puede_borrar" class="btn-mini btn-mini-danger" @click="eliminar(a.id)">🗑️</button>
               </div>
             </div>
             <div v-if="carpetas.length === 0 && archivos.length === 0" class="vacio">
@@ -245,6 +245,7 @@ export default {
       archivos: [],
       carpetas: [],
       carpetaActualId: null,
+      accesoCarpetaActual: null,  // permisos efectivos dentro de la carpeta actual (null = usar acceso de bóveda)
       breadcrumb: [],
       miembros: [],
       errorArchivo: '',
@@ -266,6 +267,12 @@ export default {
     }
   },
   computed: {
+    // Permisos efectivos: si estamos dentro de una carpeta usa accesoCarpetaActual, si no el de la bóveda
+    accesoEfectivo() {
+      return this.carpetaActualId && this.accesoCarpetaActual
+        ? this.accesoCarpetaActual
+        : (this.acceso || {});
+    },
     porcentaje() {
       if (!this.boveda?.espacio_total_bytes) return 0;
       return Math.min(this.boveda.espacio_usado_bytes / this.boveda.espacio_total_bytes * 100, 100).toFixed(1);
@@ -301,25 +308,42 @@ export default {
     // ── Navegación carpetas ──
     irARaiz() {
       this.carpetaActualId = null;
+      this.accesoCarpetaActual = null;
       this.breadcrumb = [];
       this.cargarContenido();
     },
-    entrarCarpeta(carpeta) {
+    async entrarCarpeta(carpeta) {
+      // Verificar acceso antes de entrar
+      if (!carpeta.acceso?.puede_leer) return;
       this.breadcrumb.push({ id: carpeta.id, nombre: carpeta.nombre });
       this.carpetaActualId = carpeta.id;
+      this.accesoCarpetaActual = carpeta.acceso;
       this.cargarContenido();
     },
-    irACarpeta(id, nombre, index) {
+    async irACarpeta(id, nombre, index) {
       this.breadcrumb = this.breadcrumb.slice(0, index + 1);
       this.carpetaActualId = id;
+      // Recargar acceso de la carpeta destino
+      try {
+        const res = await fetch(`${API}/carpetas/${id}/acceso`, { headers: this.headers() });
+        this.accesoCarpetaActual = res.ok ? await res.json() : null;
+      } catch { this.accesoCarpetaActual = null; }
       this.cargarContenido();
     },
-    subirNivel() {
+    async subirNivel() {
       if (this.breadcrumb.length === 0) return;
       this.breadcrumb.pop();
-      this.carpetaActualId = this.breadcrumb.length > 0
-        ? this.breadcrumb[this.breadcrumb.length - 1].id
-        : null;
+      if (this.breadcrumb.length > 0) {
+        const crumb = this.breadcrumb[this.breadcrumb.length - 1];
+        this.carpetaActualId = crumb.id;
+        try {
+          const res = await fetch(`${API}/carpetas/${crumb.id}/acceso`, { headers: this.headers() });
+          this.accesoCarpetaActual = res.ok ? await res.json() : null;
+        } catch { this.accesoCarpetaActual = null; }
+      } else {
+        this.carpetaActualId = null;
+        this.accesoCarpetaActual = null;
+      }
       this.cargarContenido();
     },
 

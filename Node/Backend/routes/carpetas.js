@@ -6,7 +6,6 @@ const { logUser } = require('../logger');
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
-// Obtiene acceso del usuario a una bóveda (reutilizamos lógica de bovedas)
 async function obtenerAccesoBoveda(bovedaId, usuarioId) {
   const creador = await pool.query(
     `SELECT id FROM bovedas WHERE id = $1 AND creador_id = $2`,
@@ -26,10 +25,10 @@ async function obtenerAccesoBoveda(bovedaId, usuarioId) {
   return null;
 }
 
-// Verifica si el usuario tiene acceso a una carpeta dentro de una bóveda
-// Hereda los permisos de la bóveda, con posibilidad de permisos específicos de carpeta
+// Calcula los permisos efectivos del usuario sobre una carpeta concreta.
+// Creador de bóveda y gestores siempre heredan permisos de bóveda.
+// El resto: si hay permisos específicos de carpeta se usan, si no hereda de bóveda.
 async function obtenerAccesoCarpeta(carpetaId, usuarioId) {
-  // Obtener datos de la carpeta
   const carpeta = await pool.query(
     `SELECT * FROM carpetas WHERE id = $1`,
     [carpetaId]
@@ -38,7 +37,7 @@ async function obtenerAccesoCarpeta(carpetaId, usuarioId) {
 
   const c = carpeta.rows[0];
 
-  // Si es carpeta de almacén personal (sin boveda_id), solo el propietario
+  // Carpeta de almacén personal: solo el propietario
   if (!c.boveda_id) {
     if (c.creador_id === usuarioId) {
       return { esCreador: true, puede_leer: true, puede_subir: true, puede_borrar: true, puede_gestionar: true, carpeta: c };
@@ -46,52 +45,65 @@ async function obtenerAccesoCarpeta(carpetaId, usuarioId) {
     return null;
   }
 
-  // Si tiene bóveda, verificar acceso a la bóveda
   const accesoBoveda = await obtenerAccesoBoveda(c.boveda_id, usuarioId);
   if (!accesoBoveda) return null;
 
-  // Verificar si hay permisos específicos de carpeta
-  const permisosCarpeta = await pool.query(
-    `SELECT * FROM carpeta_permisos WHERE carpeta_id = $1 AND usuario_id = $2`,
-    [carpetaId, usuarioId]
-  );
-
-  // Si hay permisos específicos de carpeta, usarlos (solo si no es creador de bóveda ni tiene gestión)
-  if (permisosCarpeta.rows.length > 0 && !accesoBoveda.esCreador && !accesoBoveda.puede_gestionar) {
-    const pc = permisosCarpeta.rows[0];
+  // Creador de bóveda y gestores: siempre permisos de bóveda, sin restricción por carpeta
+  if (accesoBoveda.esCreador || accesoBoveda.puede_gestionar) {
     return {
-      esCreador: c.creador_id === usuarioId,
-      puede_leer: pc.puede_leer,
-      puede_subir: pc.puede_subir,
-      puede_borrar: pc.puede_borrar,
-      puede_gestionar: false,
-      boveda: accesoBoveda,
+      esCreador: accesoBoveda.esCreador,
+      puede_leer: true,
+      puede_subir: true,
+      puede_borrar: true,
+      puede_gestionar: true,
       carpeta: c
     };
   }
 
-  // Si no hay permisos específicos, hereda de la bóveda
+  // Miembro normal: comprobar permisos específicos de carpeta
+  const permisosCarpeta = await pool.query(
+    `SELECT puede_leer, puede_subir, puede_borrar
+     FROM carpeta_permisos WHERE carpeta_id = $1 AND usuario_id = $2`,
+    [carpetaId, usuarioId]
+  );
+
+  if (permisosCarpeta.rows.length > 0) {
+    const pc = permisosCarpeta.rows[0];
+    return {
+      esCreador: false,
+      puede_leer: pc.puede_leer,
+      puede_subir: pc.puede_subir,
+      puede_borrar: pc.puede_borrar,
+      puede_gestionar: false,
+      carpeta: c,
+      tienePermisosEspecificos: true
+    };
+  }
+
+  // Sin permisos específicos: hereda de la bóveda
   return {
-    esCreador: c.creador_id === usuarioId,
+    esCreador: false,
     puede_leer: accesoBoveda.puede_leer,
     puede_subir: accesoBoveda.puede_subir,
     puede_borrar: accesoBoveda.puede_borrar,
-    puede_gestionar: accesoBoveda.puede_gestionar || accesoBoveda.esCreador,
-    boveda: accesoBoveda,
-    carpeta: c
+    puede_gestionar: false,
+    carpeta: c,
+    tienePermisosEspecificos: false
   };
 }
 
 // ─── RUTAS DE CARPETAS EN BÓVEDA ────────────────────────────────────────────
 
-// Listar carpetas de una bóveda en un nivel (raíz o dentro de una carpeta)
+// Listar carpetas de una bóveda en un nivel, devolviendo acceso efectivo por carpeta
 // GET /carpetas/boveda/:bovedaId?parent_id=xxx
 router.get('/boveda/:bovedaId', verificarToken, async (req, res) => {
   const { bovedaId } = req.params;
-  const { parent_id } = req.query; // null = raíz
+  const { parent_id } = req.query;
 
-  const acceso = await obtenerAccesoBoveda(bovedaId, req.user.id);
-  if (!acceso || !acceso.puede_leer) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
+  const accesoBoveda = await obtenerAccesoBoveda(bovedaId, req.user.id);
+  if (!accesoBoveda || !accesoBoveda.puede_leer) {
+    return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
+  }
 
   try {
     const result = await pool.query(
@@ -102,10 +114,33 @@ router.get('/boveda/:bovedaId', verificarToken, async (req, res) => {
        ORDER BY c.nombre ASC`,
       [bovedaId, parent_id || null]
     );
-    res.json(result.rows);
+
+    // Para cada carpeta, calcular el acceso efectivo del usuario
+    const carpetasConAcceso = await Promise.all(
+      result.rows.map(async (carpeta) => {
+        const acceso = await obtenerAccesoCarpeta(carpeta.id, req.user.id);
+        return {
+          ...carpeta,
+          acceso: acceso || { puede_leer: false, puede_subir: false, puede_borrar: false, puede_gestionar: false }
+        };
+      })
+    );
+
+    // Filtrar carpetas a las que el usuario no tiene acceso de lectura
+    const carpetasVisibles = carpetasConAcceso.filter(c => c.acceso.puede_leer);
+
+    res.json(carpetasVisibles);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Obtener acceso efectivo del usuario a una carpeta concreta
+// GET /carpetas/:carpetaId/acceso
+router.get('/:carpetaId/acceso', verificarToken, async (req, res) => {
+  const acceso = await obtenerAccesoCarpeta(req.params.carpetaId, req.user.id);
+  if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta carpeta' });
+  res.json(acceso);
 });
 
 // Crear carpeta en bóveda
@@ -116,13 +151,25 @@ router.post('/boveda/:bovedaId', verificarToken, async (req, res) => {
 
   if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
 
-  const acceso = await obtenerAccesoBoveda(bovedaId, req.user.id);
-  if (!acceso || !acceso.puede_subir) return res.status(403).json({ error: 'Sin permiso para crear carpetas' });
+  // Si estamos creando dentro de una carpeta, verificar permisos de esa carpeta
+  if (parent_id) {
+    const acceso = await obtenerAccesoCarpeta(parent_id, req.user.id);
+    if (!acceso || !acceso.puede_subir) {
+      return res.status(403).json({ error: 'Sin permiso para crear carpetas aquí' });
+    }
+  } else {
+    const acceso = await obtenerAccesoBoveda(bovedaId, req.user.id);
+    if (!acceso || !acceso.puede_subir) {
+      return res.status(403).json({ error: 'Sin permiso para crear carpetas' });
+    }
+  }
 
   try {
-    // Si hay parent_id, verificar que pertenece a esta bóveda
     if (parent_id) {
-      const padre = await pool.query(`SELECT id FROM carpetas WHERE id = $1 AND boveda_id = $2`, [parent_id, bovedaId]);
+      const padre = await pool.query(
+        `SELECT id FROM carpetas WHERE id = $1 AND boveda_id = $2`,
+        [parent_id, bovedaId]
+      );
       if (padre.rows.length === 0) return res.status(404).json({ error: 'Carpeta padre no encontrada' });
     }
 
@@ -138,13 +185,13 @@ router.post('/boveda/:bovedaId', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar carpeta de bóveda (elimina en cascada subcarpetas y archivos lógicamente)
+// Eliminar carpeta de bóveda
 // DELETE /carpetas/boveda/:bovedaId/:carpetaId
 router.delete('/boveda/:bovedaId/:carpetaId', verificarToken, async (req, res) => {
   const { bovedaId, carpetaId } = req.params;
 
-  const acceso = await obtenerAccesoBoveda(bovedaId, req.user.id);
-  if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
+  const accesoBoveda = await obtenerAccesoBoveda(bovedaId, req.user.id);
+  if (!accesoBoveda) return res.status(403).json({ error: 'Sin acceso a esta bóveda' });
 
   try {
     const carpeta = await pool.query(
@@ -153,14 +200,11 @@ router.delete('/boveda/:bovedaId/:carpetaId', verificarToken, async (req, res) =
     );
     if (carpeta.rows.length === 0) return res.status(404).json({ error: 'Carpeta no encontrada' });
 
-    // Solo puede eliminar el creador de la carpeta, creador de la bóveda o gestores
     const esCreadorCarpeta = carpeta.rows[0].creador_id === req.user.id;
-    if (!esCreadorCarpeta && !acceso.esCreador && !acceso.puede_gestionar) {
+    if (!esCreadorCarpeta && !accesoBoveda.esCreador && !accesoBoveda.puede_gestionar) {
       return res.status(403).json({ error: 'Sin permiso para eliminar esta carpeta' });
     }
 
-    // Soft delete de todos los archivos dentro (recursivo vía SQL)
-    // Primero obtenemos todos los ids de subcarpetas recursivamente
     await pool.query(
       `WITH RECURSIVE sub AS (
          SELECT id FROM carpetas WHERE id = $1
@@ -172,9 +216,7 @@ router.delete('/boveda/:bovedaId/:carpetaId', verificarToken, async (req, res) =
       [carpetaId, bovedaId]
     );
 
-    // Eliminar la carpeta (cascade borrará subcarpetas en la BD)
     await pool.query(`DELETE FROM carpetas WHERE id = $1`, [carpetaId]);
-
     await logUser(req.user.id, 'ELIMINAR_CARPETA', `Carpeta ID: ${carpetaId}`, req.ip);
     res.json({ message: 'Carpeta eliminada' });
   } catch (err) {
@@ -182,14 +224,15 @@ router.delete('/boveda/:bovedaId/:carpetaId', verificarToken, async (req, res) =
   }
 });
 
-// Obtener permisos de una carpeta
+// ─── PERMISOS DE CARPETA ────────────────────────────────────────────────────
+
+// Obtener lista de permisos asignados a una carpeta
 // GET /carpetas/:carpetaId/permisos
 router.get('/:carpetaId/permisos', verificarToken, async (req, res) => {
   const { carpetaId } = req.params;
-
   const acceso = await obtenerAccesoCarpeta(carpetaId, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta carpeta' });
-  if (!acceso.puede_gestionar && !acceso.esCreador) return res.status(403).json({ error: 'Solo gestores pueden ver permisos de carpeta' });
+  if (!acceso.puede_gestionar) return res.status(403).json({ error: 'Solo gestores pueden ver permisos de carpeta' });
 
   try {
     const result = await pool.query(
@@ -205,7 +248,7 @@ router.get('/:carpetaId/permisos', verificarToken, async (req, res) => {
   }
 });
 
-// Establecer/actualizar permisos de carpeta para un usuario
+// Asignar/actualizar permisos de carpeta para un usuario
 // POST /carpetas/:carpetaId/permisos
 router.post('/:carpetaId/permisos', verificarToken, async (req, res) => {
   const { carpetaId } = req.params;
@@ -215,7 +258,7 @@ router.post('/:carpetaId/permisos', verificarToken, async (req, res) => {
 
   const acceso = await obtenerAccesoCarpeta(carpetaId, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta carpeta' });
-  if (!acceso.puede_gestionar && !acceso.esCreador) return res.status(403).json({ error: 'Solo gestores pueden asignar permisos' });
+  if (!acceso.puede_gestionar) return res.status(403).json({ error: 'Solo gestores pueden asignar permisos' });
 
   try {
     const usuario = await pool.query(
@@ -248,7 +291,7 @@ router.delete('/:carpetaId/permisos/:uid', verificarToken, async (req, res) => {
 
   const acceso = await obtenerAccesoCarpeta(carpetaId, req.user.id);
   if (!acceso) return res.status(403).json({ error: 'Sin acceso a esta carpeta' });
-  if (!acceso.puede_gestionar && !acceso.esCreador) return res.status(403).json({ error: 'Solo gestores pueden revocar permisos' });
+  if (!acceso.puede_gestionar) return res.status(403).json({ error: 'Solo gestores pueden revocar permisos' });
 
   try {
     await pool.query(
@@ -263,11 +306,9 @@ router.delete('/:carpetaId/permisos/:uid', verificarToken, async (req, res) => {
 
 // ─── RUTAS DE CARPETAS EN ALMACÉN PERSONAL ──────────────────────────────────
 
-// Listar carpetas del almacén personal
 // GET /carpetas/personal?parent_id=xxx
 router.get('/personal', verificarToken, async (req, res) => {
   const { parent_id } = req.query;
-
   try {
     const result = await pool.query(
       `SELECT c.*, u.username as creador_username
@@ -283,13 +324,10 @@ router.get('/personal', verificarToken, async (req, res) => {
   }
 });
 
-// Crear carpeta en almacén personal
 // POST /carpetas/personal
 router.post('/personal', verificarToken, async (req, res) => {
   const { nombre, parent_id } = req.body;
-
   if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
-
   try {
     if (parent_id) {
       const padre = await pool.query(
@@ -298,7 +336,6 @@ router.post('/personal', verificarToken, async (req, res) => {
       );
       if (padre.rows.length === 0) return res.status(404).json({ error: 'Carpeta padre no encontrada' });
     }
-
     const result = await pool.query(
       `INSERT INTO carpetas (nombre, boveda_id, parent_id, creador_id)
        VALUES ($1, NULL, $2, $3) RETURNING *`,
@@ -311,11 +348,9 @@ router.post('/personal', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar carpeta del almacén personal
 // DELETE /carpetas/personal/:carpetaId
 router.delete('/personal/:carpetaId', verificarToken, async (req, res) => {
   const { carpetaId } = req.params;
-
   try {
     const carpeta = await pool.query(
       `SELECT * FROM carpetas WHERE id = $1 AND creador_id = $2 AND boveda_id IS NULL`,
@@ -323,7 +358,6 @@ router.delete('/personal/:carpetaId', verificarToken, async (req, res) => {
     );
     if (carpeta.rows.length === 0) return res.status(404).json({ error: 'Carpeta no encontrada' });
 
-    // Soft delete de archivos dentro
     await pool.query(
       `WITH RECURSIVE sub AS (
          SELECT id FROM carpetas WHERE id = $1
@@ -334,9 +368,7 @@ router.delete('/personal/:carpetaId', verificarToken, async (req, res) => {
        WHERE carpeta_id IN (SELECT id FROM sub) AND propietario_id = $2`,
       [carpetaId, req.user.id]
     );
-
     await pool.query(`DELETE FROM carpetas WHERE id = $1`, [carpetaId]);
-
     await logUser(req.user.id, 'ELIMINAR_CARPETA_PERSONAL', `Carpeta ID: ${carpetaId}`, req.ip);
     res.json({ message: 'Carpeta eliminada' });
   } catch (err) {
