@@ -33,18 +33,11 @@ router.get('/notificaciones', verificarToken, async (req, res) => {
     );
     const user = result.rows[0];
     const notificaciones = [];
-
     if (user.password_must_change) {
-      notificaciones.push({
-        tipo: 'warning',
-        mensaje: 'Debes cambiar tu contraseña. Ha sido reseteada por un administrador.'
-      });
+      notificaciones.push({ tipo: 'warning', mensaje: 'Debes cambiar tu contraseña. Ha sido reseteada por un administrador.' });
     }
     if (!user.activo) {
-      notificaciones.push({
-        tipo: 'error',
-        mensaje: 'Tu cuenta está deshabilitada. Contacta con soporte.'
-      });
+      notificaciones.push({ tipo: 'error', mensaje: 'Tu cuenta está deshabilitada. Contacta con soporte.' });
     }
     res.json(notificaciones);
   } catch (err) {
@@ -53,10 +46,8 @@ router.get('/notificaciones', verificarToken, async (req, res) => {
 });
 
 // Listar archivos del usuario (soporte de carpeta_id)
-// GET /archivos/lista?carpeta_id=xxx  (null = raíz)
 router.get('/lista', verificarToken, async (req, res) => {
   const { carpeta_id } = req.query;
-
   try {
     const result = await pool.query(
       `SELECT id, nombre, tipo, tamanio_bytes, creado_en, carpeta_id
@@ -74,7 +65,117 @@ router.get('/lista', verificarToken, async (req, res) => {
   }
 });
 
-// Subir archivo al almacén personal (con soporte de carpeta_id)
+// ─── PAPELERA ────────────────────────────────────────────────────────────────
+
+// Listar archivos en la papelera (solo almacén personal)
+router.get('/papelera', verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, tipo, tamanio_bytes, creado_en, nombre_objeto
+       FROM archivos
+       WHERE propietario_id = $1
+         AND eliminado = true
+         AND boveda_id IS NULL
+       ORDER BY creado_en DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Restaurar archivo de la papelera
+router.patch('/papelera/:id/restaurar', verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE archivos SET eliminado = false
+       WHERE id = $1 AND propietario_id = $2 AND eliminado = true AND boveda_id IS NULL
+       RETURNING tamanio_bytes, nombre`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Archivo no encontrado en la papelera' });
+    }
+    // Volver a contar el espacio
+    await pool.query(
+      `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes + $1
+       WHERE usuario_id = $2`,
+      [result.rows[0].tamanio_bytes, req.user.id]
+    );
+    await logUser(req.user.id, 'RESTAURAR_ARCHIVO', `Archivo: ${result.rows[0].nombre}`, req.ip);
+    res.json({ message: 'Archivo restaurado' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Eliminar archivo permanentemente de la papelera (borra de MinIO y BD)
+router.delete('/papelera/:id', verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, nombre_objeto, tamanio_bytes
+       FROM archivos
+       WHERE id = $1 AND propietario_id = $2 AND eliminado = true AND boveda_id IS NULL`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Archivo no encontrado en la papelera' });
+    }
+    const archivo = result.rows[0];
+
+    // Borrar de MinIO
+    try {
+      await minioClient.removeObject(BUCKET, archivo.nombre_objeto);
+    } catch (minioErr) {
+      console.error('Error borrando de MinIO:', minioErr.message);
+      // Continuamos aunque falle MinIO para no dejar registros huérfanos en BD
+    }
+
+    // Borrar de PostgreSQL
+    await pool.query(`DELETE FROM archivos WHERE id = $1`, [archivo.id]);
+
+    await logUser(req.user.id, 'ELIMINAR_PERMANENTE', `Archivo: ${archivo.nombre}`, req.ip);
+    res.json({ message: 'Archivo eliminado permanentemente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Vaciar papelera completa (elimina permanentemente todos los archivos eliminados)
+router.delete('/papelera', verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre_objeto FROM archivos
+       WHERE propietario_id = $1 AND eliminado = true AND boveda_id IS NULL`,
+      [req.user.id]
+    );
+
+    // Borrar todos de MinIO
+    for (const archivo of result.rows) {
+      try {
+        await minioClient.removeObject(BUCKET, archivo.nombre_objeto);
+      } catch (minioErr) {
+        console.error('Error borrando de MinIO:', minioErr.message);
+      }
+    }
+
+    // Borrar todos de PostgreSQL
+    await pool.query(
+      `DELETE FROM archivos WHERE propietario_id = $1 AND eliminado = true AND boveda_id IS NULL`,
+      [req.user.id]
+    );
+
+    await logUser(req.user.id, 'VACIAR_PAPELERA', `${result.rows.length} archivos eliminados`, req.ip);
+    res.json({ message: `Papelera vaciada (${result.rows.length} archivos eliminados)` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ARCHIVOS ────────────────────────────────────────────────────────────────
+
+// Subir archivo al almacén personal
 router.post('/subir', verificarToken, upload.single('archivo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se ha enviado ningún archivo' });
@@ -85,7 +186,6 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
   const nombreObjeto = `${req.user.id}/${Date.now()}-${originalname}`;
 
   try {
-    // Si se especifica carpeta, verificar que pertenece al usuario
     if (carpeta_id) {
       const carpeta = await pool.query(
         `SELECT id FROM carpetas WHERE id = $1 AND creador_id = $2 AND boveda_id IS NULL`,
@@ -112,9 +212,7 @@ router.post('/subir', verificarToken, upload.single('archivo'), async (req, res)
       return res.status(400).json({ error: 'No tienes espacio suficiente' });
     }
 
-    await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, {
-      'Content-Type': mimetype
-    });
+    await minioClient.putObject(BUCKET, nombreObjeto, buffer, size, { 'Content-Type': mimetype });
 
     const result = await pool.query(
       `INSERT INTO archivos (nombre, nombre_objeto, tipo, tamanio_bytes, propietario_id, almacen_id, carpeta_id)
@@ -143,14 +241,11 @@ router.get('/descargar/:id', verificarToken, async (req, res) => {
       `SELECT * FROM archivos WHERE id = $1 AND propietario_id = $2 AND eliminado = false`,
       [req.params.id, req.user.id]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Archivo no encontrado' });
     }
-
     const archivo = result.rows[0];
     const stream = await minioClient.getObject(BUCKET, archivo.nombre_objeto);
-
     res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
     res.setHeader('Content-Type', archivo.tipo);
     await logUser(req.user.id, 'DESCARGAR_ARCHIVO', `Archivo: ${archivo.nombre}`, req.ip);
@@ -160,26 +255,24 @@ router.get('/descargar/:id', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar archivo (papelera)
+// Mover archivo a la papelera (soft delete)
 router.delete('/eliminar/:id', verificarToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `UPDATE archivos SET eliminado = true WHERE id = $1 AND propietario_id = $2 RETURNING tamanio_bytes`,
+      `UPDATE archivos SET eliminado = true WHERE id = $1 AND propietario_id = $2 AND eliminado = false
+       RETURNING tamanio_bytes`,
       [req.params.id, req.user.id]
     );
-    await logUser(req.user.id, 'ELIMINAR_ARCHIVO', `Archivo ID: ${req.params.id}`, req.ip);
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Archivo no encontrado' });
     }
-
     await pool.query(
       `UPDATE usuario_almacen SET espacio_usado_bytes = espacio_usado_bytes - $1
        WHERE usuario_id = $2`,
       [result.rows[0].tamanio_bytes, req.user.id]
     );
-
-    res.json({ message: 'Archivo eliminado' });
+    await logUser(req.user.id, 'ELIMINAR_ARCHIVO', `Archivo ID: ${req.params.id}`, req.ip);
+    res.json({ message: 'Archivo movido a la papelera' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

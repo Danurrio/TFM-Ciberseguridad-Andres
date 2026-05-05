@@ -22,7 +22,7 @@
         </button>
         <button
           :class="{ active: seccion === 'papelera' }"
-          @click="seccion = 'papelera'">
+          @click="seccion = 'papelera'; cargarPapelera()">
           🗑️ Papelera
         </button>
       </nav>
@@ -198,7 +198,39 @@
 
       <!-- ── PAPELERA ── -->
       <div v-if="seccion === 'papelera'">
-        <div class="vacio">La papelera está vacía.</div>
+        <div class="papelera-header">
+          <p class="papelera-info">
+            Los archivos en la papelera no ocupan espacio. Restáuralos o elimínalos permanentemente.
+          </p>
+          <button
+            v-if="archivosEliminados.length > 0"
+            class="btn-vaciar"
+            @click="vaciarPapelera">
+            🗑️ Vaciar papelera
+          </button>
+        </div>
+
+        <div v-if="cargandoPapelera" class="vacio">Cargando papelera...</div>
+
+        <div v-else-if="archivosEliminados.length === 0" class="vacio">
+          🗑️ La papelera está vacía.
+        </div>
+
+        <div v-else class="lista-archivos">
+          <div class="archivo-fila" v-for="archivo in archivosEliminados" :key="archivo.id" style="cursor:default">
+            <div style="display:flex;align-items:center;gap:0.75rem;min-width:0;">
+              <span style="font-size:1.3rem;flex-shrink:0;">{{ iconoArchivo(archivo.tipo) }}</span>
+              <div style="min-width:0;">
+                <p class="archivo-nombre" style="text-align:left;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ archivo.nombre }}</p>
+                <p class="archivo-fecha" style="margin:0;">{{ formatBytes(archivo.tamanio_bytes) }} · {{ new Date(archivo.creado_en).toLocaleDateString() }}</p>
+              </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-shrink:0;">
+              <button class="btn-mini btn-mini-restore" @click="restaurarArchivo(archivo.id)" title="Restaurar">♻️ Restaurar</button>
+              <button class="btn-mini btn-mini-danger" @click="eliminarPermanente(archivo.id, archivo.nombre)" title="Eliminar permanentemente">🗑️ Eliminar</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ── MODAL NUEVA CARPETA ── -->
@@ -266,6 +298,9 @@ export default {
       creandoCarpeta: false,
       nombreNuevaCarpeta: '',
       errorCarpeta: '',
+      // Papelera
+      archivosEliminados: [],
+      cargandoPapelera: false,
       // Bóveda
       mostrarModalBoveda: false,
       creandoBoveda: false,
@@ -454,6 +489,46 @@ export default {
     },
     abrirBoveda(id) { this.$router.push(`/boveda/${id}`); },
 
+    // ── Papelera ──
+    async cargarPapelera() {
+      this.cargandoPapelera = true;
+      try {
+        const res = await fetch(`${API}/archivos/papelera`, { headers: this.headers() });
+        this.archivosEliminados = await res.json();
+      } catch (err) { console.error(err); }
+      finally { this.cargandoPapelera = false; }
+    },
+    async restaurarArchivo(id) {
+      try {
+        const res = await fetch(`${API}/archivos/papelera/${id}/restaurar`, {
+          method: 'PATCH', headers: this.headers()
+        });
+        if (res.ok) {
+          await this.cargarPapelera();
+          await this.cargarEspacio();
+        }
+      } catch (err) { console.error(err); }
+    },
+    async eliminarPermanente(id, nombre) {
+      if (!confirm(`¿Eliminar "${nombre}" permanentemente? Esta acción no se puede deshacer.`)) return;
+      try {
+        await fetch(`${API}/archivos/papelera/${id}`, { method: 'DELETE', headers: this.headers() });
+        await this.cargarPapelera();
+      } catch (err) { console.error(err); }
+    },
+    async vaciarPapelera() {
+      if (!confirm(`¿Vaciar la papelera? Se eliminarán ${this.archivosEliminados.length} archivos permanentemente.`)) return;
+      try {
+        await fetch(`${API}/archivos/papelera`, { method: 'DELETE', headers: this.headers() });
+        await this.cargarPapelera();
+      } catch (err) { console.error(err); }
+    },
+    formatBytes(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / 1048576).toFixed(1)} MB`;
+    },
+
     // ── Archivos ──
     iconoArchivo(tipo) {
       if (!tipo) return '📁';
@@ -636,4 +711,18 @@ export default {
 .btn-cancelar { background: #334155; border: none; border-radius: 8px; padding: 0.6rem 1rem; color: #e2e8f0; cursor: pointer; }
 .btn-crear { background: #3b82f6; border: none; border-radius: 8px; padding: 0.6rem 1rem; color: white; cursor: pointer; }
 .btn-crear:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Papelera */
+.papelera-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;
+}
+.papelera-info { font-size: 0.85rem; color: #64748b; }
+.btn-vaciar {
+  background: #7f1d1d; color: #fca5a5; border: none; border-radius: 8px;
+  padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer; flex-shrink: 0;
+}
+.btn-vaciar:hover { background: #991b1b; }
+.btn-mini-restore { background: #065f46; color: #6ee7b7; }
+.btn-mini-restore:hover { background: #047857; }
 </style>
