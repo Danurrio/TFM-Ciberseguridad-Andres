@@ -66,7 +66,7 @@
 </template>
 
 <script>
-const API = 'http://backend-opendrive.apps-crc.testing';
+const API = 'https://backend-opendrive.apps-crc.testing';
 
 export default {
   data() {
