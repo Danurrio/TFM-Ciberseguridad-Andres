@@ -1,16 +1,11 @@
-# Node
+
 node_modules/
 *.log
 
-# Variables de entorno
 .env
 .env.local
-
-# Secretos (nunca subir al repo)
 *-secret.yml
 
-# OS
 .DS_Store
 Thumbs.db
-Node/Frontend/b45f6b831c0a
-Node/Frontend/c12aaa42bf1a
+
