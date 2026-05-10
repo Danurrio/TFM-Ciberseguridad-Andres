@@ -9,7 +9,7 @@ const { encrypt, decrypt, streamToBuffer } = require('../crypto');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
+
 
 async function obtenerAcceso(bovedaId, usuarioId) {
   const creador = await pool.query(

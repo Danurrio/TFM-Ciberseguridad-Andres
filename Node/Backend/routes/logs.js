@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 const { verificarToken, soloRoles } = require('../middleware/auth');
 
-// Logs de administración
+
 router.get('/admin', verificarToken, soloRoles('superadmin', 'admin'), async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 200); 
   const page  = Math.max(parseInt(req.query.page)  || 1, 1);
@@ -34,7 +34,7 @@ router.get('/admin', verificarToken, soloRoles('superadmin', 'admin'), async (re
   }
 });
 
-// Logs de usuarios
+
 router.get('/usuarios', verificarToken, soloRoles('superadmin', 'admin'), async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   const page  = Math.max(parseInt(req.query.page)  || 1, 1);

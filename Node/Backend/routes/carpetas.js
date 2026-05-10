@@ -4,7 +4,6 @@ const pool = require('../db');
 const { verificarToken } = require('../middleware/auth');
 const { logUser } = require('../logger');
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
 
 async function obtenerAccesoBoveda(bovedaId, usuarioId) {
   const creador = await pool.query(
@@ -60,7 +59,7 @@ async function obtenerAccesoCarpeta(carpetaId, usuarioId) {
     };
   }
 
-  // Miembro normal: comprobar permisos específicos de carpeta
+
   const permisosCarpeta = await pool.query(
     `SELECT puede_leer, puede_subir, puede_borrar
      FROM carpeta_permisos WHERE carpeta_id = $1 AND usuario_id = $2`,
@@ -80,7 +79,7 @@ async function obtenerAccesoCarpeta(carpetaId, usuarioId) {
     };
   }
 
-  // Sin permisos específicos: hereda de la bóveda
+
   return {
     esCreador: false,
     puede_leer: accesoBoveda.puede_leer,

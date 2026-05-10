@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET ;
 
 function verificarToken(req, res, next) {
   const authHeader = req.headers['authorization'];

@@ -51,7 +51,7 @@ function decrypt(encryptedBuffer) {
 }
 
 /**
- * Descifra un stream de MinIO (readable) y devuelve un Buffer descifrado.
+ *
  * @param {stream.Readable} stream
  * @returns {Promise<Buffer>}
  */

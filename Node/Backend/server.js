@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(cors({
-  origin: 'http://frontend-opendrive.apps-crc.testing',
+  origin: 'https://frontend-opendrive.apps-crc.testing',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
