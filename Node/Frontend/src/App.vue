@@ -1,28 +1,20 @@
 <template>
   <div class="app">
     <nav v-if="loggedIn" class="navbar">
-      <!-- Logo clickable que lleva al dashboard -->
       <span class="logo" @click="$router.push('/dashboard')">
         ☁️ <span class="logo-text">OpenDrive</span>
       </span>
 
       <div class="nav-acciones">
-        <!-- Saludo -->
         <span class="username">👋 {{ username }}</span>
-
         <div class="nav-divider"></div>
-
-        <!-- Botones de admin -->
         <button v-if="esAdmin" @click="$router.push('/admin')" class="btn-nav btn-admin">
           ⚙️ Administración
         </button>
         <button v-if="esAdmin" @click="$router.push('/logs')" class="btn-nav btn-logs">
           📋 Logs
         </button>
-
         <div class="nav-divider" v-if="esAdmin"></div>
-
-        <!-- Cerrar sesión -->
         <button @click="logout" class="btn-nav btn-logout">
           🚪 Cerrar sesión
         </button>
@@ -54,6 +46,7 @@ export default {
       localStorage.removeItem('rol')
       localStorage.removeItem('username')
       localStorage.removeItem('password_must_change')
+      sessionStorage.removeItem('csrf_token') // <-- NUEVO: limpiar csrf_token al cerrar sesión
       this.loggedIn = false
       this.username = ''
       this.esAdmin  = false
@@ -85,7 +78,6 @@ export default {
   backdrop-filter: blur(8px);
 }
 
-/* Logo */
 .logo {
   display: flex;
   align-items: center;
@@ -100,7 +92,6 @@ export default {
 .logo:hover { opacity: 0.8; }
 .logo-text { letter-spacing: 0.02em; }
 
-/* Acciones */
 .nav-acciones {
   display: flex;
   align-items: center;
@@ -121,7 +112,6 @@ export default {
   margin: 0 0.25rem;
 }
 
-/* Botones */
 .btn-nav {
   display: flex;
   align-items: center;
@@ -137,26 +127,12 @@ export default {
 }
 .btn-nav:active { transform: scale(0.97); }
 
-.btn-admin {
-  background: #4c1d95;
-  color: #ddd6fe;
-}
+.btn-admin { background: #4c1d95; color: #ddd6fe; }
 .btn-admin:hover { background: #5b21b6; }
 
-.btn-logs {
-  background: #0f4c3a;
-  color: #6ee7b7;
-}
+.btn-logs { background: #0f4c3a; color: #6ee7b7; }
 .btn-logs:hover { background: #065f46; }
 
-.btn-logout {
-  background: #1e293b;
-  color: #94a3b8;
-  border: 1px solid #334155;
-}
-.btn-logout:hover {
-  background: #7f1d1d;
-  color: #fca5a5;
-  border-color: #7f1d1d;
-}
+.btn-logout { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+.btn-logout:hover { background: #7f1d1d; color: #fca5a5; border-color: #7f1d1d; }
 </style>

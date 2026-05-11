@@ -27,7 +27,6 @@
         </button>
       </nav>
 
-      <!-- Espacio usado -->
       <div class="espacio-box">
         <p class="espacio-label">Almacenamiento</p>
         <div class="barra-fondo">
@@ -40,11 +39,9 @@
     <!-- Contenido principal -->
     <main class="main-content">
 
-      <!-- Header -->
       <div class="main-header">
         <div class="header-left">
           <h2>{{ tituloSeccion }}</h2>
-          <!-- Breadcrumb de carpetas -->
           <div v-if="seccion === 'mis-archivos' && breadcrumb.length > 0" class="breadcrumb">
             <span class="breadcrumb-item" @click="irARaiz()">📁 Mis archivos</span>
             <template v-for="(crumb, i) in breadcrumb" :key="crumb.id">
@@ -82,7 +79,6 @@
         {{ n.mensaje }}
       </div>
 
-      <!-- Error de subida -->
       <div v-if="errorSubida" class="notificacion error" style="display:flex;justify-content:space-between;align-items:center;">
         <span>⚠️ {{ errorSubida }}</span>
         <span style="cursor:pointer;font-size:1.1rem;padding-left:1rem;" @click="errorSubida = ''">✕</span>
@@ -90,15 +86,12 @@
 
       <!-- ── MIS ARCHIVOS ── -->
       <div v-if="seccion === 'mis-archivos'">
-
-        <!-- Botón volver si estamos dentro de una carpeta -->
         <div v-if="carpetaActualId" class="btn-volver-wrap">
           <button class="btn-volver" @click="subirNivel()">← Volver</button>
         </div>
 
         <!-- Vista grid -->
         <div v-if="vistaGrid" class="grid-archivos">
-          <!-- Carpetas primero -->
           <div
             class="archivo-card carpeta-card"
             v-for="carpeta in carpetas"
@@ -110,7 +103,6 @@
               <button class="btn-mini btn-mini-danger" @click.stop="eliminarCarpeta(carpeta.id, carpeta.nombre)">🗑️</button>
             </div>
           </div>
-          <!-- Archivos -->
           <div class="archivo-card" v-for="archivo in archivos" :key="archivo.id">
             <div class="archivo-icono">{{ iconoArchivo(archivo.tipo) }}</div>
             <p class="archivo-nombre">{{ archivo.nombre }}</p>
@@ -128,7 +120,6 @@
 
         <!-- Vista lista -->
         <div v-else class="lista-archivos">
-          <!-- Carpetas -->
           <div
             class="archivo-fila carpeta-fila"
             v-for="carpeta in carpetas"
@@ -140,7 +131,6 @@
               <button class="btn-mini btn-mini-danger" @click.stop="eliminarCarpeta(carpeta.id, carpeta.nombre)">🗑️</button>
             </div>
           </div>
-          <!-- Archivos -->
           <div class="archivo-fila" v-for="archivo in archivos" :key="archivo.id">
             <span>{{ iconoArchivo(archivo.tipo) }} {{ archivo.nombre }}</span>
             <div style="display:flex; gap:0.5rem; align-items:center;">
@@ -200,7 +190,7 @@
       <div v-if="seccion === 'papelera'">
         <div class="papelera-header">
           <p class="papelera-info">
-            Los archivos en la papelera no ocupan espacio. Restáuralos o elimínalos permanentemente. Se borran automaticamente despues de 30 dias.
+            Los archivos en la papelera no ocupan espacio. Restáuralos o elimínalos permanentemente. Se borran automáticamente después de 30 días.
           </p>
           <button
             v-if="archivosEliminados.length > 0"
@@ -277,7 +267,7 @@
 </template>
 
 <script>
-const API = 'https://backend-opendrive.apps-crc.testing';
+import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '../api'
 
 export default {
   data() {
@@ -287,21 +277,18 @@ export default {
       notificaciones: [],
       archivos: [],
       carpetas: [],
-      carpetaActualId: null,      // null = raíz
-      breadcrumb: [],             // [{ id, nombre }, ...]
+      carpetaActualId: null,
+      breadcrumb: [],
       espacioUsadoBytes: 0,
       espacioTotalBytes: 0,
       bovedas: [],
       misBovedas: [],
-      // Carpeta
       mostrarModalCarpeta: false,
       creandoCarpeta: false,
       nombreNuevaCarpeta: '',
       errorCarpeta: '',
-      // Papelera
       archivosEliminados: [],
       cargandoPapelera: false,
-      // Bóveda
       mostrarModalBoveda: false,
       creandoBoveda: false,
       errorBoveda: '',
@@ -312,270 +299,256 @@ export default {
   computed: {
     username() { return localStorage.getItem('username') || 'Usuario' },
     porcentajeEspacio() {
-      if (!this.espacioTotalBytes) return 0;
-      return Math.min((this.espacioUsadoBytes / this.espacioTotalBytes) * 100, 100).toFixed(1);
+      if (!this.espacioTotalBytes) return 0
+      return Math.min((this.espacioUsadoBytes / this.espacioTotalBytes) * 100, 100).toFixed(1)
     },
     colorEspacio() {
-      const p = this.porcentajeEspacio;
-      if (p >= 90) return '#ef4444';
-      if (p >= 70) return '#f59e0b';
-      return '#3b82f6';
+      const p = this.porcentajeEspacio
+      if (p >= 90) return '#ef4444'
+      if (p >= 70) return '#f59e0b'
+      return '#3b82f6'
     },
-    espacioUsadoMB() { return (this.espacioUsadoBytes / 1048576).toFixed(1); },
-    espacioTotalMB() { return (this.espacioTotalBytes / 1048576).toFixed(1); },
-    espacioLibreMB() { return Math.max(0, ((this.espacioTotalBytes - this.espacioUsadoBytes) / 1048576).toFixed(1)); },
+    espacioUsadoMB() { return (this.espacioUsadoBytes / 1048576).toFixed(1) },
+    espacioTotalMB() { return (this.espacioTotalBytes / 1048576).toFixed(1) },
+    espacioLibreMB() { return Math.max(0, ((this.espacioTotalBytes - this.espacioUsadoBytes) / 1048576).toFixed(1)) },
     tituloSeccion() {
       const titulos = {
         'mis-archivos': '📁 Mis archivos',
         'mis-bovedas':  '🗄️ Mis bóvedas',
         'compartidos':  '🔒 Bóvedas compartidas',
         'papelera':     '🗑️ Papelera'
-      };
-      return titulos[this.seccion];
+      }
+      return titulos[this.seccion]
     }
   },
   async mounted() {
-    this.cargarNotificaciones();
-    this.cargarEspacio();
-    this.cargarContenido();
+    this.cargarNotificaciones()
+    this.cargarEspacio()
+    this.cargarContenido()
   },
   methods: {
-    headers() {
-      return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      };
-    },
 
     // ── Navegación ──
     irAMisArchivos() {
-      this.seccion = 'mis-archivos';
-      this.irARaiz();
+      this.seccion = 'mis-archivos'
+      this.irARaiz()
     },
     irARaiz() {
-      this.carpetaActualId = null;
-      this.breadcrumb = [];
-      this.cargarContenido();
+      this.carpetaActualId = null
+      this.breadcrumb = []
+      this.cargarContenido()
     },
     entrarCarpeta(carpeta) {
-      this.breadcrumb.push({ id: carpeta.id, nombre: carpeta.nombre });
-      this.carpetaActualId = carpeta.id;
-      this.cargarContenido();
+      this.breadcrumb.push({ id: carpeta.id, nombre: carpeta.nombre })
+      this.carpetaActualId = carpeta.id
+      this.cargarContenido()
     },
     irACarpeta(id, nombre, index) {
-      // Navegar a un nivel intermedio del breadcrumb
-      this.breadcrumb = this.breadcrumb.slice(0, index + 1);
-      this.carpetaActualId = id;
-      this.cargarContenido();
+      this.breadcrumb = this.breadcrumb.slice(0, index + 1)
+      this.carpetaActualId = id
+      this.cargarContenido()
     },
     subirNivel() {
-      if (this.breadcrumb.length === 0) return;
-      this.breadcrumb.pop();
+      if (this.breadcrumb.length === 0) return
+      this.breadcrumb.pop()
       this.carpetaActualId = this.breadcrumb.length > 0
         ? this.breadcrumb[this.breadcrumb.length - 1].id
-        : null;
-      this.cargarContenido();
+        : null
+      this.cargarContenido()
     },
 
     // ── Carga de datos ──
     async cargarContenido() {
-      await Promise.all([this.cargarCarpetas(), this.cargarArchivos()]);
+      await Promise.all([this.cargarCarpetas(), this.cargarArchivos()])
     },
     async cargarCarpetas() {
       try {
-        const params = this.carpetaActualId ? `?parent_id=${this.carpetaActualId}` : '';
-        const res = await fetch(`${API}/carpetas/personal${params}`, { headers: this.headers() });
-        this.carpetas = await res.json();
-      } catch (err) { console.error(err); }
+        const params = this.carpetaActualId ? `?parent_id=${this.carpetaActualId}` : ''
+        const res = await apiGet(`/carpetas/personal${params}`)
+        this.carpetas = await res.json()
+      } catch (err) { console.error(err) }
     },
     async cargarArchivos() {
       try {
-        const params = this.carpetaActualId ? `?carpeta_id=${this.carpetaActualId}` : '';
-        const res = await fetch(`${API}/archivos/lista${params}`, { headers: this.headers() });
-        this.archivos = await res.json();
-      } catch (err) { console.error(err); }
+        const params = this.carpetaActualId ? `?carpeta_id=${this.carpetaActualId}` : ''
+        const res = await apiGet(`/archivos/lista${params}`)
+        this.archivos = await res.json()
+      } catch (err) { console.error(err) }
     },
     async cargarNotificaciones() {
       try {
-        const res = await fetch(`${API}/archivos/notificaciones`, { headers: this.headers() });
-        this.notificaciones = await res.json();
-      } catch (err) { console.error(err); }
+        const res = await apiGet('/archivos/notificaciones')
+        this.notificaciones = await res.json()
+      } catch (err) { console.error(err) }
     },
     async cargarEspacio() {
       try {
-        const res = await fetch(`${API}/archivos/espacio`, { headers: this.headers() });
-        const data = await res.json();
-        this.espacioUsadoBytes = data.espacio_usado_bytes || 0;
-        this.espacioTotalBytes = data.cuota_maxima_bytes || 0;
-      } catch (err) { console.error(err); }
+        const res = await apiGet('/archivos/espacio')
+        const data = await res.json()
+        this.espacioUsadoBytes = data.espacio_usado_bytes || 0
+        this.espacioTotalBytes = data.cuota_maxima_bytes || 0
+      } catch (err) { console.error(err) }
     },
     async cargarBovedas() {
       try {
-        const res = await fetch(`${API}/bovedas/compartidas`, { headers: this.headers() });
-        this.bovedas = await res.json();
-      } catch (err) { console.error(err); }
+        const res = await apiGet('/bovedas/compartidas')
+        this.bovedas = await res.json()
+      } catch (err) { console.error(err) }
     },
     async cargarMisBovedas() {
       try {
-        const res = await fetch(`${API}/bovedas/mias`, { headers: this.headers() });
-        this.misBovedas = await res.json();
-      } catch (err) { console.error(err); }
+        const res = await apiGet('/bovedas/mias')
+        this.misBovedas = await res.json()
+      } catch (err) { console.error(err) }
     },
 
     // ── Carpetas ──
     async crearCarpeta() {
-      this.errorCarpeta = '';
-      if (!this.nombreNuevaCarpeta.trim()) { this.errorCarpeta = 'El nombre es obligatorio'; return; }
-      this.creandoCarpeta = true;
+      this.errorCarpeta = ''
+      if (!this.nombreNuevaCarpeta.trim()) { this.errorCarpeta = 'El nombre es obligatorio'; return }
+      this.creandoCarpeta = true
       try {
-        const body = { nombre: this.nombreNuevaCarpeta.trim() };
-        if (this.carpetaActualId) body.parent_id = this.carpetaActualId;
-        const res = await fetch(`${API}/carpetas/personal`, {
-          method: 'POST',
-          headers: this.headers(),
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        this.mostrarModalCarpeta = false;
-        this.nombreNuevaCarpeta = '';
-        await this.cargarCarpetas();
+        const body = { nombre: this.nombreNuevaCarpeta.trim() }
+        if (this.carpetaActualId) body.parent_id = this.carpetaActualId
+        const res = await apiPost('/carpetas/personal', body)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error)
+        this.mostrarModalCarpeta = false
+        this.nombreNuevaCarpeta = ''
+        await this.cargarCarpetas()
       } catch (err) {
-        this.errorCarpeta = err.message;
+        this.errorCarpeta = err.message
       } finally {
-        this.creandoCarpeta = false;
+        this.creandoCarpeta = false
       }
     },
     async eliminarCarpeta(id, nombre) {
-      if (!confirm(`¿Eliminar la carpeta "${nombre}" y todo su contenido?`)) return;
+      if (!confirm(`¿Eliminar la carpeta "${nombre}" y todo su contenido?`)) return
       try {
-        await fetch(`${API}/carpetas/personal/${id}`, { method: 'DELETE', headers: this.headers() });
-        await this.cargarContenido();
-      } catch (err) { console.error(err); }
+        await apiDelete(`/carpetas/personal/${id}`)
+        await this.cargarContenido()
+      } catch (err) { console.error(err) }
     },
 
     // ── Bóvedas ──
     async crearBoveda() {
-      this.errorBoveda = '';
+      this.errorBoveda = ''
       if (!this.nuevaBoveda.nombre || !this.nuevaBoveda.espacioMB) {
-        this.errorBoveda = 'Nombre y espacio son obligatorios'; return;
+        this.errorBoveda = 'Nombre y espacio son obligatorios'; return
       }
-      if (this.nuevaBoveda.espacioMB < 1) { this.errorBoveda = 'El espacio mínimo es 1 MB'; return; }
+      if (this.nuevaBoveda.espacioMB < 1) { this.errorBoveda = 'El espacio mínimo es 1 MB'; return }
       if (this.nuevaBoveda.espacioMB > this.espacioLibreMB) {
-        this.errorBoveda = `No tienes suficiente espacio libre (${this.espacioLibreMB} MB)`; return;
+        this.errorBoveda = `No tienes suficiente espacio libre (${this.espacioLibreMB} MB)`; return
       }
-      this.creandoBoveda = true;
+      this.creandoBoveda = true
       try {
-        const res = await fetch(`${API}/bovedas/crear`, {
-          method: 'POST',
-          headers: this.headers(),
-          body: JSON.stringify({
-            nombre: this.nuevaBoveda.nombre,
-            descripcion: this.nuevaBoveda.descripcion || undefined,
-            espacio_bytes: Math.round(this.nuevaBoveda.espacioMB * 1048576)
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        this.mostrarModalBoveda = false;
-        this.nuevaBoveda = { nombre: '', descripcion: '', espacioMB: '' };
-        await this.cargarEspacio();
-        await this.cargarMisBovedas();
+        const res = await apiPost('/bovedas/crear', {
+          nombre: this.nuevaBoveda.nombre,
+          descripcion: this.nuevaBoveda.descripcion || undefined,
+          espacio_bytes: Math.round(this.nuevaBoveda.espacioMB * 1048576)
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error)
+        this.mostrarModalBoveda = false
+        this.nuevaBoveda = { nombre: '', descripcion: '', espacioMB: '' }
+        await this.cargarEspacio()
+        await this.cargarMisBovedas()
       } catch (err) {
-        this.errorBoveda = err.message;
+        this.errorBoveda = err.message
       } finally {
-        this.creandoBoveda = false;
+        this.creandoBoveda = false
       }
     },
-    abrirBoveda(id) { this.$router.push(`/boveda/${id}`); },
+    abrirBoveda(id) { this.$router.push(`/boveda/${id}`) },
 
     // ── Papelera ──
     async cargarPapelera() {
-      this.cargandoPapelera = true;
+      this.cargandoPapelera = true
       try {
-        const res = await fetch(`${API}/archivos/papelera`, { headers: this.headers() });
-        this.archivosEliminados = await res.json();
-      } catch (err) { console.error(err); }
-      finally { this.cargandoPapelera = false; }
+        const res = await apiGet('/archivos/papelera')
+        this.archivosEliminados = await res.json()
+      } catch (err) { console.error(err) }
+      finally { this.cargandoPapelera = false }
     },
     async restaurarArchivo(id) {
       try {
-        const res = await fetch(`${API}/archivos/papelera/${id}/restaurar`, {
-          method: 'PATCH', headers: this.headers()
-        });
+        const res = await apiPatch(`/archivos/papelera/${id}/restaurar`, {})
         if (res.ok) {
-          await this.cargarPapelera();
-          await this.cargarEspacio();
+          await this.cargarPapelera()
+          await this.cargarEspacio()
         }
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error(err) }
     },
     async eliminarPermanente(id, nombre) {
-      if (!confirm(`¿Eliminar "${nombre}" permanentemente? Esta acción no se puede deshacer.`)) return;
+      if (!confirm(`¿Eliminar "${nombre}" permanentemente? Esta acción no se puede deshacer.`)) return
       try {
-        await fetch(`${API}/archivos/papelera/${id}`, { method: 'DELETE', headers: this.headers() });
-        await this.cargarPapelera();
-      } catch (err) { console.error(err); }
+        await apiDelete(`/archivos/papelera/${id}`)
+        await this.cargarPapelera()
+      } catch (err) { console.error(err) }
     },
     async vaciarPapelera() {
-      if (!confirm(`¿Vaciar la papelera? Se eliminarán ${this.archivosEliminados.length} archivos permanentemente.`)) return;
+      if (!confirm(`¿Vaciar la papelera? Se eliminarán ${this.archivosEliminados.length} archivos permanentemente.`)) return
       try {
-        await fetch(`${API}/archivos/papelera`, { method: 'DELETE', headers: this.headers() });
-        await this.cargarPapelera();
-      } catch (err) { console.error(err); }
+        await apiDelete('/archivos/papelera')
+        await this.cargarPapelera()
+      } catch (err) { console.error(err) }
     },
     formatBytes(bytes) {
-      if (bytes < 1024) return `${bytes} B`;
-      if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-      return `${(bytes / 1048576).toFixed(1)} MB`;
+      if (bytes < 1024) return `${bytes} B`
+      if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
+      return `${(bytes / 1048576).toFixed(1)} MB`
     },
 
     // ── Archivos ──
     iconoArchivo(tipo) {
-      if (!tipo) return '📁';
-      if (tipo.includes('pdf')) return '📄';
-      if (tipo.includes('image')) return '🖼️';
-      if (tipo.includes('video')) return '🎬';
-      if (tipo.includes('audio')) return '🎵';
-      if (tipo.includes('zip') || tipo.includes('compressed') || tipo.includes('x-tar')) return '📦';
-      if (tipo.includes('word') || tipo.includes('document') || tipo.includes('msword')) return '📝';
-      return '📁';
+      if (!tipo) return '📁'
+      if (tipo.includes('pdf')) return '📄'
+      if (tipo.includes('image')) return '🖼️'
+      if (tipo.includes('video')) return '🎬'
+      if (tipo.includes('audio')) return '🎵'
+      if (tipo.includes('zip') || tipo.includes('compressed') || tipo.includes('x-tar')) return '📦'
+      if (tipo.includes('word') || tipo.includes('document') || tipo.includes('msword')) return '📝'
+      return '📁'
     },
     async subirArchivo(event) {
-      this.errorSubida = '';
-      const archivo = event.target.files[0];
-      if (!archivo) return;
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      if (this.carpetaActualId) formData.append('carpeta_id', this.carpetaActualId);
+      this.errorSubida = ''
+      const archivo = event.target.files[0]
+      if (!archivo) return
+      const formData = new FormData()
+      formData.append('archivo', archivo)
+      if (this.carpetaActualId) formData.append('carpeta_id', this.carpetaActualId)
       try {
-        const res = await fetch(`${API}/archivos/subir`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-          body: formData
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        await this.cargarArchivos();
-        await this.cargarEspacio();
+        const res = await apiUpload('/archivos/subir', formData)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error)
+        await this.cargarArchivos()
+        await this.cargarEspacio()
       } catch (err) {
-        this.errorSubida = err.message;
+        this.errorSubida = err.message
       } finally {
-        event.target.value = '';
+        event.target.value = ''
       }
     },
     async descargarArchivo(id, nombre) {
-      const res = await fetch(`${API}/archivos/descargar/${id}`, { headers: this.headers() });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = nombre; a.click();
-      URL.revokeObjectURL(url);
+      // La descarga necesita manejar el blob directamente,
+      // pero sí necesita los headers de auth y CSRF
+      const token = localStorage.getItem('token')
+      const csrfToken = sessionStorage.getItem('csrf_token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+      const res = await fetch(`${(await import('../api')).API}/archivos/descargar/${id}`, { headers })
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = nombre; a.click()
+      URL.revokeObjectURL(url)
     },
     async eliminarArchivo(id) {
-      if (!confirm('¿Mover a la papelera?')) return;
-      await fetch(`${API}/archivos/eliminar/${id}`, { method: 'DELETE', headers: this.headers() });
-      await this.cargarArchivos();
-      await this.cargarEspacio();
+      if (!confirm('¿Mover a la papelera?')) return
+      await apiDelete(`/archivos/eliminar/${id}`)
+      await this.cargarArchivos()
+      await this.cargarEspacio()
     }
   }
 }
@@ -613,7 +586,6 @@ export default {
 .main-header h2 { color: #e2e8f0; font-size: 1.5rem; }
 .header-acciones { display: flex; gap: 0.75rem; flex-shrink: 0; align-items: center; }
 
-/* Breadcrumb */
 .breadcrumb { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .breadcrumb-item {
   font-size: 0.82rem; color: #60a5fa; cursor: pointer; padding: 0.15rem 0.35rem;
@@ -624,7 +596,6 @@ export default {
 .breadcrumb-actual:hover { background: transparent; }
 .breadcrumb-sep { color: #475569; font-size: 0.9rem; }
 
-/* Botón volver */
 .btn-volver-wrap { margin-bottom: 1rem; }
 .btn-volver {
   background: #334155; color: #94a3b8; border: none; border-radius: 8px;
@@ -642,7 +613,6 @@ export default {
 .notificacion.warning { background: #78350f; color: #fde68a; }
 .notificacion.error { background: #7f1d1d; color: #fca5a5; }
 
-/* Grid archivos y carpetas */
 .grid-archivos {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;
 }
@@ -659,7 +629,6 @@ export default {
 .archivo-fecha { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
 .archivo-acciones { display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.5rem; }
 
-/* Lista */
 .lista-archivos { display: flex; flex-direction: column; gap: 0.5rem; }
 .archivo-fila {
   display: flex; justify-content: space-between; align-items: center;
@@ -675,7 +644,6 @@ export default {
 
 .vacio { text-align: center; color: #475569; padding: 4rem 2rem; font-size: 1rem; line-height: 2; }
 
-/* Grid bóvedas */
 .grid-bovedas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
 .boveda-card {
   background: #1e293b; border: 1px solid #334155; border-radius: 12px;
@@ -690,7 +658,6 @@ export default {
 .boveda-permisos { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
 .permiso { font-size: 0.72rem; background: #1e40af; color: #bfdbfe; padding: 0.15rem 0.5rem; border-radius: 999px; }
 
-/* Modales */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6);
   display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -712,7 +679,6 @@ export default {
 .btn-crear { background: #3b82f6; border: none; border-radius: 8px; padding: 0.6rem 1rem; color: white; cursor: pointer; }
 .btn-crear:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Papelera */
 .papelera-header {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;

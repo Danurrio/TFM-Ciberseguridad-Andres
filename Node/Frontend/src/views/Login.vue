@@ -18,7 +18,7 @@
 </template>
 
 <script>
-const API = 'https://backend-opendrive.apps-crc.testing';
+const API = import.meta.env.VITE_API_URL || 'https://backend-opendrive.apps-crc.testing';
 
 export default {
   data() {
@@ -35,10 +35,17 @@ export default {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
+
+        // El JWT se guarda en localStorage (mismo comportamiento anterior)
+        // El csrf_token se guarda en sessionStorage, separado del JWT,
+        // y se enviará en el header X-CSRF-Token en cada petición mutante.
+        // sessionStorage se limpia automáticamente al cerrar la pestaña.
         localStorage.setItem('token', data.token)
         localStorage.setItem('rol', data.rol)
         localStorage.setItem('username', data.username)
         localStorage.setItem('password_must_change', data.password_must_change)
+        sessionStorage.setItem('csrf_token', data.csrf_token) // <-- NUEVO
+
         this.$router.push('/dashboard')
         this.$emit('logged-in', { token: data.token, rol: data.rol, username: data.username })
       } catch (err) {

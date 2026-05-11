@@ -5,10 +5,12 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db');
 const { logUser } = require('../logger');
-const { verificarToken } = require('../middleware/auth');
-const JWT_SECRET = process.env.JWT_SECRET || 'opendrive-secret-key';
+const { verificarToken, verificarCsrf } = require('../middleware/auth');
 
-router.post('/cambiar-password', verificarToken, async (req, res) => {
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// ── Cambiar contraseña (ruta mutante → requiere CSRF) ────────────────────────
+router.post('/cambiar-password', verificarToken, verificarCsrf, async (req, res) => {
   const { password_actual, password_nueva } = req.body;
 
   if (!password_actual || !password_nueva) {
@@ -54,7 +56,7 @@ function validarTelefono(telefono) {
   return /^\+?[\d\s\-]{7,15}$/.test(telefono);
 }
 
-// Registro
+// ── Registro (público, sin CSRF — el usuario aún no tiene token) ─────────────
 router.post('/register', async (req, res) => {
   const { username, email, password, nombre, apellido, telefono, direccion } = req.body;
 
@@ -67,8 +69,8 @@ router.post('/register', async (req, res) => {
   }
 
   if (!validarPassword(password)) {
-    return res.status(400).json({ 
-      error: 'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial' 
+    return res.status(400).json({
+      error: 'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial'
     });
   }
 
@@ -92,8 +94,7 @@ router.post('/register', async (req, res) => {
 
     const nuevoUsuario = result.rows[0];
 
-    // Crear almacén personal con 20 MB de cuota por defecto dentro de la misma transacción
-    const CUOTA_DEFAULT = 20 * 1024 * 1024; // 20 MB en bytes
+    const CUOTA_DEFAULT = 20 * 1024 * 1024;
     const almacen = await client.query(
       `INSERT INTO almacenes (nombre, espacio_total_bytes)
        VALUES ($1, $2) RETURNING id`,
@@ -118,7 +119,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
+// ── Login (público, genera csrf_token embebido en JWT) ───────────────────────
 router.post('/login', async (req, res) => {
   const { identificador, password } = req.body;
 
@@ -128,8 +129,8 @@ router.post('/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT u.*, r.nombre as rol 
-       FROM usuarios u 
+      `SELECT u.*, r.nombre as rol
+       FROM usuarios u
        LEFT JOIN roles r ON u.rol_id = r.id
        WHERE u.email = $1 OR u.username = $1`,
       [identificador]
@@ -150,18 +151,22 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
+    // csrf_token: valor aleatorio embebido en el JWT.
+    // El cliente lo guarda y lo reenvía en X-CSRF-Token en cada petición mutante.
     const csrf_token = crypto.randomBytes(32).toString('hex');
 
     const token = jwt.sign(
       { id: user.id, username: user.username, email: user.email, rol: user.rol, csrf_token },
       JWT_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: '2h' } // Reducido de 8h a 2h
     );
+
     await logUser(user.id, 'LOGIN', `Login desde ${req.ip}`, req.ip);
-    res.json({ 
-      message: 'Login correcto', 
+
+    res.json({
+      message: 'Login correcto',
       token,
-      csrf_token,
+      csrf_token,       // el cliente debe guardarlo y enviarlo en X-CSRF-Token
       rol: user.rol,
       username: user.username,
       password_must_change: user.password_must_change

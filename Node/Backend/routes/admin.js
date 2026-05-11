@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { verificarToken, soloRoles } = require('../middleware/auth');
+const { verificarToken, verificarCsrf, soloRoles } = require('../middleware/auth');
 const { logAdmin } = require('../logger');
 
 const ROLES_ADMIN = ['superadmin', 'admin', 'soporte'];
 
+// GET — solo lectura, no requiere CSRF
 router.get('/usuarios', verificarToken, soloRoles(...ROLES_ADMIN), async (req, res) => {
   try {
     const result = await pool.query(
@@ -23,7 +24,8 @@ router.get('/usuarios', verificarToken, soloRoles(...ROLES_ADMIN), async (req, r
   }
 });
 
-router.patch('/usuarios/:id/activo', verificarToken, soloRoles('superadmin', 'admin'), async (req, res) => {
+// PATCH — mutante, requiere CSRF
+router.patch('/usuarios/:id/activo', verificarToken, verificarCsrf, soloRoles('superadmin', 'admin'), async (req, res) => {
   const { id } = req.params;
   const { activo } = req.body;
 
@@ -50,7 +52,8 @@ router.patch('/usuarios/:id/activo', verificarToken, soloRoles('superadmin', 'ad
   }
 });
 
-router.patch('/usuarios/:id/forzar-password', verificarToken, soloRoles('superadmin', 'admin', 'soporte'), async (req, res) => {
+// PATCH — mutante, requiere CSRF
+router.patch('/usuarios/:id/forzar-password', verificarToken, verificarCsrf, soloRoles('superadmin', 'admin', 'soporte'), async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('UPDATE usuarios SET password_must_change = true WHERE id = $1', [id]);
@@ -61,7 +64,8 @@ router.patch('/usuarios/:id/forzar-password', verificarToken, soloRoles('superad
   }
 });
 
-router.patch('/usuarios/:id/rol', verificarToken, soloRoles('superadmin', 'admin'), async (req, res) => {
+// PATCH — mutante, requiere CSRF
+router.patch('/usuarios/:id/rol', verificarToken, verificarCsrf, soloRoles('superadmin', 'admin'), async (req, res) => {
   const { id } = req.params;
   const { rol_nombre } = req.body;
   const rolSolicitante = req.user.rol;
@@ -82,7 +86,8 @@ router.patch('/usuarios/:id/rol', verificarToken, soloRoles('superadmin', 'admin
   }
 });
 
-router.delete('/usuarios/:id', verificarToken, soloRoles('superadmin'), async (req, res) => {
+// DELETE — mutante, requiere CSRF
+router.delete('/usuarios/:id', verificarToken, verificarCsrf, soloRoles('superadmin'), async (req, res) => {
   const { id } = req.params;
   if (id === req.user.id) {
     return res.status(403).json({ error: 'No puedes eliminar tu propia cuenta' });
