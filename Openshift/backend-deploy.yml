@@ -61,4 +61,9 @@ spec:
                 secretKeyRef:
                   name: backend-encryption-secret
                   key: FILE_ENCRYPTION_KEY
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: JWT_SECRET
  
